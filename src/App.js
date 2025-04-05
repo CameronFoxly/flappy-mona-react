@@ -267,6 +267,23 @@ function App() {
       // Buffer new obstacles
       bufferObstacles(canvas);
 
+      // Refine score increment logic to prevent double counting
+      const updateScore = () => {
+        for (let i = obstaclesRef.current.length - 1; i >= 0; i--) {
+          const obstacle = obstaclesRef.current[i];
+      
+          // Ensure the score increments only once per obstacle
+          if (!obstacle.passed && obstacle.x + obstacleWidth < 100) {
+            obstacle.passed = true; // Mark the obstacle as passed
+            setScore((prevScore) => prevScore + 1); // Increment the score
+            console.log(`Score incremented! Current score: ${score + 1}`); // Debug log
+          }
+        }
+      };
+      
+      // Call updateScore in the game loop
+      updateScore();
+
       if (!isGameOver) {
         requestAnimationFrame(gameLoop);
       }
