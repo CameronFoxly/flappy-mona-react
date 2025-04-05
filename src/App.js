@@ -40,7 +40,7 @@ function App() {
   // Game constants - speed values now represent units per second rather than per frame
   const flapStrength = -350;
   const obstacleWidth = 100; // Scaled for game world size
-  const obstacleGap = 180;  // Scaled for game world size
+  const obstacleGap = 200;  // Scaled for game world size
   const obstacleSpacing = 200;
   const obstacleSpeed = 150;
   const gravity = 900;
@@ -57,11 +57,21 @@ function App() {
     flapSequence: [4, 5, 6, 0, 1, 2, 3], // 0-indexed (frame-1)
     // Flag to indicate if flap animation is in progress
     isFlapping: false,
+    // Flag to indicate if death animation is in progress
+    isDeathAnimating: false,
+    // Current death animation frame
+    deathFrame: 0,
+    // Flag to hide the bird after death animation completes
+    hideAfterDeath: false,
     // Frame time in milliseconds (time each frame should be shown)
-    frameTime: 50, // Adjust this value to control animation speed
+    frameTime: 66, // Adjust this value to control animation speed
     // Timer for current frame
     frameTimer: 0
   });
+
+  // Add a reference to track bird's Y position outside the game loop
+  const birdYRef = useRef(GAME_HEIGHT / 2);
+  const finalDeathPositionRef = useRef(GAME_HEIGHT / 2); // Store final position on death
 
   // Add a function to reset the game state
   const resetGame = useCallback((canvas) => {
@@ -71,6 +81,13 @@ function App() {
     setShowStartMessage(true);
     setScore(0);
     obstaclesRef.current = [];
+
+    // Reset animation states
+    playerSpritesRef.current.isDeathAnimating = false;
+    playerSpritesRef.current.deathFrame = 0;
+    playerSpritesRef.current.hideAfterDeath = false;
+    playerSpritesRef.current.isFlapping = false;
+    playerSpritesRef.current.currentFrame = 0;
 
     // Reset bird position and obstacles
     const context = canvas.getContext('2d');
@@ -90,6 +107,13 @@ function App() {
     
     const context = canvas.getContext('2d');
     context.setTransform(1, 0, 0, 1, 0, 0); // Reset transform first
+    
+    // Disable image smoothing for crisp pixel art
+    context.imageSmoothingEnabled = false;
+    context.mozImageSmoothingEnabled = false;
+    context.webkitImageSmoothingEnabled = false;
+    context.msImageSmoothingEnabled = false;
+    
     context.translate(offsetXRef.current, offsetYRef.current);
     context.scale(scaleRef.current, scaleRef.current);
   }, []);
@@ -155,23 +179,22 @@ function App() {
     // Apply the transform
     applyTransform(canvas);
     
-    // Draw background (sky)
-    context.fillStyle = '#87CEFA'; // Light sky blue background
-    context.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-    
     // Draw bird at middle point
     const birdY = GAME_HEIGHT / 2;
+    
+    // Increase sprite size - doubled from 48x48 to 96x96
+    const spriteSize = 96;
     
     // Draw bird sprite if loaded
     const playerSprites = playerSpritesRef.current;
     if (!isGameStarted && playerSprites.frames && playerSprites.frames[0]) {
       // Before game starts, show the first frame
       const sprite = playerSprites.frames[0]; // Player_1.png
-      context.drawImage(sprite, 100 - 24, birdY - 24, 48, 48);
+      context.drawImage(sprite, 100 - spriteSize/2, birdY - spriteSize/2, spriteSize, spriteSize);
     } else if (isGameOver && playerSprites.deathFrames && playerSprites.deathFrames[0]) {
       // Game over - show death animation final frame
       const sprite = playerSprites.deathFrames[playerSprites.deathFrames.length - 1];
-      context.drawImage(sprite, 100 - 24, birdY - 24, 48, 48);
+      context.drawImage(sprite, 100 - spriteSize/2, birdY - spriteSize/2, spriteSize, spriteSize);
     } else if (playerSprites.frames) {
       // Game is running - show current frame from flap sequence or default
       const frameIndex = playerSprites.isFlapping 
@@ -179,7 +202,7 @@ function App() {
         : 3; // Default to frame 4 when not flapping (0-indexed)
       
       if (playerSprites.frames[frameIndex]) {
-        context.drawImage(playerSprites.frames[frameIndex], 100 - 24, birdY - 24, 48, 48);
+        context.drawImage(playerSprites.frames[frameIndex], 100 - spriteSize/2, birdY - spriteSize/2, spriteSize, spriteSize);
       } else {
         // Fallback if sprite not loaded
         context.fillStyle = 'yellow';
@@ -368,6 +391,7 @@ function App() {
     if (!canvas) return;
     
     let birdY = GAME_HEIGHT / 2;
+    birdYRef.current = birdY; // Initialize the ref
     lastTimestampRef.current = 0;
 
     const gameLoop = (timestamp) => {
@@ -381,9 +405,36 @@ function App() {
       // Clamp deltaTime to prevent huge jumps
       const clampedDeltaTime = Math.min(deltaTime, 0.1);
 
+      // Clear canvas with transform reset to properly clear everything
+      const context = canvas.getContext('2d');
+      context.save();
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.restore();
+      
+      // Apply scaling transform
+      applyTransform(canvas);
+
       // Update sprite animation
       const playerSprites = playerSpritesRef.current;
-      if (playerSprites.isFlapping) {
+      
+      if (isGameOver && playerSprites.isDeathAnimating) {
+        // Update death animation
+        playerSprites.frameTimer += clampedDeltaTime * 1000; // Convert to ms
+        
+        if (playerSprites.frameTimer >= playerSprites.frameTime) {
+          playerSprites.frameTimer = 0;
+          playerSprites.deathFrame++;
+          
+          // Check if death animation completed
+          if (playerSprites.deathFrame >= playerSprites.deathFrames.length) {
+            playerSprites.isDeathAnimating = false;
+            playerSprites.hideAfterDeath = true; // Set flag to hide the bird completely
+          }
+        }
+      }
+      else if (playerSprites.isFlapping) {
+        // Update flap animation
         playerSprites.frameTimer += clampedDeltaTime * 1000; // Convert to ms
         
         if (playerSprites.frameTimer >= playerSprites.frameTime) {
@@ -398,20 +449,14 @@ function App() {
         }
       }
 
-      // Clear canvas with transform reset to properly clear everything
-      const context = canvas.getContext('2d');
-      context.save();
-      context.setTransform(1, 0, 0, 1, 0, 0);
-      context.clearRect(0, 0, canvas.width, canvas.height);
-      context.restore();
-      
-      // Apply scaling transform
-      applyTransform(canvas);
 
+      // Draw bird at current position
+      const spriteSize = 96;
+      
       if (!isGameStarted) {
         // Draw the bird in its initial position using sprite
         if (playerSprites.frames && playerSprites.frames[0]) {
-          context.drawImage(playerSprites.frames[0], 100 - 24, birdY - 24, 48, 48);
+          context.drawImage(playerSprites.frames[0], 100 - spriteSize/2, birdY - spriteSize/2, spriteSize, spriteSize);
         } else {
           // Fallback if sprite not loaded
           context.fillStyle = 'yellow';
@@ -419,8 +464,61 @@ function App() {
           context.arc(100, birdY, 24, 0, Math.PI * 2);
           context.fill();
         }
+      } else if (isGameOver) {
+        // Don't draw anything if the death animation is complete and we should hide the bird
+        if (!playerSprites.hideAfterDeath) {
+          // Draw death animation at the position where bird died
+          const deathY = finalDeathPositionRef.current;
+          
+          if (playerSprites.deathFrames && playerSprites.deathFrames.length > 0) {
+            // If death animation is active, show appropriate frame
+            const frameIndex = Math.min(playerSprites.deathFrame, playerSprites.deathFrames.length - 1);
+            
+            if (playerSprites.deathFrames[frameIndex]) {
+              context.drawImage(
+                playerSprites.deathFrames[frameIndex], 
+                100 - spriteSize/2, 
+                deathY - spriteSize/2, 
+                spriteSize, 
+                spriteSize
+              );
+            } else {
+              // Fallback
+              context.fillStyle = 'red'; // Red circle for death
+              context.beginPath();
+              context.arc(100, deathY, 24, 0, Math.PI * 2);
+              context.fill();
+            }
+          }
+        }
+      } else {
+        // Draw the bird using sprite (normal gameplay)
+        if (playerSprites.frames) {
+          const frameIndex = playerSprites.isFlapping 
+            ? playerSprites.flapSequence[playerSprites.currentFrame]
+            : 3; // Default to frame 4 when not flapping (0-indexed)
+          
+          if (playerSprites.frames[frameIndex]) {
+            context.drawImage(
+              playerSprites.frames[frameIndex], 
+              100 - spriteSize/2, 
+              birdY - spriteSize/2, 
+              spriteSize, 
+              spriteSize
+            );
+          } else {
+            // Fallback if sprite not loaded
+            context.fillStyle = 'yellow';
+            context.beginPath();
+            context.arc(100, birdY, 24, 0, Math.PI * 2);
+            context.fill();
+          }
+        }
+      }
 
-        // Draw initial obstacles
+      // Draw obstacles - prevent movement unless the game has started
+      if (!isGameStarted) {
+        // Draw obstacles in their static initial positions
         for (let i = 0; i < obstaclesRef.current.length; i++) {
           const obstacle = obstaclesRef.current[i];
           
@@ -442,122 +540,102 @@ function App() {
         return;
       }
 
-      // Apply gravity and update bird's position
-      birdVelocityRef.current += gravity * clampedDeltaTime;
-      birdY += birdVelocityRef.current * clampedDeltaTime;
+      // Apply gravity and update bird's position (only if game is active)
+      if (!isGameOver) {
+        birdVelocityRef.current += gravity * clampedDeltaTime;
+        birdY += birdVelocityRef.current * clampedDeltaTime;
+        birdYRef.current = birdY; // Update the ref with current position
+      }
 
-      // Draw the bird using sprite
-      if (playerSprites.frames) {
-        const frameIndex = playerSprites.isFlapping 
-          ? playerSprites.flapSequence[playerSprites.currentFrame]
-          : 3; // Default to frame 4 when not flapping (0-indexed)
-        
-        if (playerSprites.frames[frameIndex]) {
-          context.drawImage(playerSprites.frames[frameIndex], 100 - 24, birdY - 24, 48, 48);
-        } else {
-          // Fallback if sprite not loaded
-          context.fillStyle = 'yellow';
-          context.beginPath();
-          context.arc(100, birdY, 24, 0, Math.PI * 2);
-          context.fill();
+      // Move obstacles (only if game is active)
+      if (!isGameOver) {
+        // Move and draw obstacles
+        for (let i = obstaclesRef.current.length - 1; i >= 0; i--) {
+          const obstacle = obstaclesRef.current[i];
+          obstacle.x -= obstacleSpeed * clampedDeltaTime;
+
+          // Draw top obstacle
+          context.fillStyle = 'green';
+          context.fillRect(obstacle.x, 0, obstacleWidth, obstacle.topHeight);
+
+          // Draw bottom obstacle
+          context.fillStyle = 'red';
+          context.fillRect(
+            obstacle.x,
+            obstacle.bottomY,
+            obstacleWidth,
+            GAME_HEIGHT - obstacle.bottomY
+          );
+
+          // Remove obstacles that go completely off-screen
+          // Make sure they're completely off the left edge with some buffer
+          if (obstacle.x + obstacleWidth < -100) {
+            obstaclesRef.current.splice(i, 1);
+          }
         }
       } else {
-        // Fallback if sprites not loaded
-        context.fillStyle = 'yellow';
-        context.beginPath();
-        context.arc(100, birdY, 24, 0, Math.PI * 2);
-        context.fill();
-      }
-
-      // Move and draw obstacles
-      for (let i = obstaclesRef.current.length - 1; i >= 0; i--) {
-        const obstacle = obstaclesRef.current[i];
-        obstacle.x -= obstacleSpeed * clampedDeltaTime;
-
-        // Draw top obstacle
-        context.fillStyle = 'green';
-        context.fillRect(obstacle.x, 0, obstacleWidth, obstacle.topHeight);
-
-        // Draw bottom obstacle
-        context.fillStyle = 'red';
-        context.fillRect(
-          obstacle.x,
-          obstacle.bottomY,
-          obstacleWidth,
-          GAME_HEIGHT - obstacle.bottomY
-        );
-
-        // Remove obstacles that go completely off-screen
-        // Make sure they're completely off the left edge with some buffer
-        if (obstacle.x + obstacleWidth < -100) {
-          obstaclesRef.current.splice(i, 1);
-        }
-      }
-
-      // Check collisions
-      const checkCollision = () => {
-        const birdRadius = 24;
-        const birdX = 100;
-      
-        // Check collision with obstacles
+        // Just draw obstacles in their current positions without moving them
         for (let i = 0; i < obstaclesRef.current.length; i++) {
           const obstacle = obstaclesRef.current[i];
-      
-          if (
-            birdX + birdRadius > obstacle.x &&
-            birdX - birdRadius < obstacle.x + obstacleWidth
-          ) {
-            // Check collision with top obstacle
-            if (birdY - birdRadius < obstacle.topHeight) {
-              return true;
-            }
-            
-            // Check collision with bottom obstacle
-            if (birdY + birdRadius > obstacle.bottomY) {
-              return true;
-            }
-          }
+          
+          // Draw top obstacle
+          context.fillStyle = 'green';
+          context.fillRect(obstacle.x, 0, obstacleWidth, obstacle.topHeight);
+          
+          // Draw bottom obstacle
+          context.fillStyle = 'red';
+          context.fillRect(
+            obstacle.x,
+            obstacle.bottomY,
+            obstacleWidth,
+            GAME_HEIGHT - obstacle.bottomY
+          );
         }
-      
-        // Check if the bird hits the boundaries
-        if (birdY + birdRadius > GAME_HEIGHT || birdY - birdRadius < 0) {
-          return true;
-        }
-      
-        return false;
-      };
-      
+      }
+
       // Check collisions and end game if needed
-      if (checkCollision()) {
-        setIsGameOver(true);
-        return;
-      }
-
-      // Buffer new obstacles
-      bufferObstacles();
-
-      // Update score
-      const updateScore = () => {
-        for (let i = 0; i < obstaclesRef.current.length; i++) {
-          const obstacle = obstaclesRef.current[i];
-      
-          if (!obstacle.passed && obstacle.x + obstacleWidth < 100) {
-            obstacle.passed = true;
-            setScore(prevScore => prevScore + 1);
-          }
-        }
-      };
-      
-      updateScore();
-
       if (!isGameOver) {
-        animationFrameIdRef.current = requestAnimationFrame(gameLoop);
+        // Use the checkCollision function defined above
+        if (checkCollision()) {
+          // Store final bird position at the moment of death
+          finalDeathPositionRef.current = birdYRef.current;
+          
+          // Start death animation
+          playerSpritesRef.current.isDeathAnimating = true;
+          playerSpritesRef.current.deathFrame = 0;
+          playerSpritesRef.current.frameTimer = 0;
+          
+          setIsGameOver(true);
+        }
       }
+
+      // Buffer new obstacles (only if game is active)
+      if (!isGameOver) {
+        bufferObstacles();
+      }
+
+      // Update score (only if game is active)
+      if (!isGameOver) {
+        const updateScore = () => {
+          for (let i = 0; i < obstaclesRef.current.length; i++) {
+            const obstacle = obstaclesRef.current[i];
+        
+            if (!obstacle.passed && obstacle.x + obstacleWidth < 100) {
+              obstacle.passed = true;
+              setScore(prevScore => prevScore + 1);
+            }
+          }
+        };
+        
+        updateScore();
+      }
+
+      // Continue the animation loop
+      animationFrameIdRef.current = requestAnimationFrame(gameLoop);
     };
 
-    if (!isGameOver) {
-      animationFrameIdRef.current = requestAnimationFrame(gameLoop);
-    }
+    // Start the game loop
+    animationFrameIdRef.current = requestAnimationFrame(gameLoop);
 
     return () => {
       if (animationFrameIdRef.current) {
@@ -565,6 +643,40 @@ function App() {
       }
     };
   }, [isGameOver, isGameStarted, applyTransform, bufferObstacles]);
+
+  // Check collisions
+  const checkCollision = useCallback(() => {
+    const birdRadius = 48; // Doubled from 24 to 48
+    const birdX = 100;
+    const birdY = birdYRef.current; // Use the ref value
+  
+    // Check collision with obstacles
+    for (let i = 0; i < obstaclesRef.current.length; i++) {
+      const obstacle = obstaclesRef.current[i];
+  
+      if (
+        birdX + birdRadius > obstacle.x &&
+        birdX - birdRadius < obstacle.x + obstacleWidth
+      ) {
+        // Check collision with top obstacle
+        if (birdY - birdRadius < obstacle.topHeight) {
+          return true;
+        }
+        
+        // Check collision with bottom obstacle
+        if (birdY + birdRadius > obstacle.bottomY) {
+          return true;
+        }
+      }
+    }
+  
+    // Check if the bird hits the boundaries
+    if (birdY + birdRadius > GAME_HEIGHT || birdY - birdRadius < 0) {
+      return true;
+    }
+  
+    return false;
+  }, []);
 
   // Input handlers
   useEffect(() => {
