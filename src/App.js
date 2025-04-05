@@ -11,7 +11,7 @@ function App() {
 
   const flapStrength = -6;
   const obstacleWidth = 135; // Width of each obstacle
-  const obstacleGap = 400; // Update the gap between obstacles to 600px
+  const obstacleGap = 400; // Update the gap between obstacles to 400px
   const obstacleSpacing = 200; // Horizontal spacing between obstacles
   const obstacleSpeed = 1.5; // Speed of obstacle movement
 
@@ -59,12 +59,14 @@ function App() {
       });
 
       // Draw initial obstacles
-      context.fillStyle = 'green';
+    
       for (let i = 0; i < obstaclesRef.current.length; i++) {
+          context.fillStyle = 'green';
         const obstacle = obstaclesRef.current[i];
         // Draw top obstacle
         context.fillRect(obstacle.x, 0, obstacleWidth, obstacle.topHeight);
         // Draw bottom obstacle
+        context.fillStyle = 'red';
         context.fillRect(
           obstacle.x,
           obstacle.bottomY,
@@ -85,7 +87,8 @@ function App() {
   const generateObstacle = (xPosition, canvas) => {
     const minGapY = 100; // Start 100px from the top of the window
     const maxGapY = canvas.height - 100 - obstacleGap; // End 100px from the bottom of the window
-    const gapY = Math.random() * (maxGapY - minGapY) + minGapY; // Randomly position the gap
+    const gapY = Math.floor(Math.random() * (maxGapY - minGapY + 1)) + minGapY; // Use Math.floor for consistent integer values
+
     return {
       x: xPosition,
       topHeight: gapY,
@@ -141,8 +144,10 @@ function App() {
         for (let i = 0; i < obstaclesRef.current.length; i++) {
           const obstacle = obstaclesRef.current[i];
           // Draw top obstacle
+          context.fillStyle = 'green';
           context.fillRect(obstacle.x, 0, obstacleWidth, obstacle.topHeight);
           // Draw bottom obstacle
+          context.fillStyle = 'red';
           context.fillRect(
             obstacle.x,
             obstacle.bottomY,
@@ -173,6 +178,7 @@ function App() {
         context.fillRect(obstacle.x, 0, obstacleWidth, obstacle.topHeight);
 
         // Draw bottom obstacle
+        context.fillStyle = 'red';
         context.fillRect(
           obstacle.x,
           obstacle.bottomY,
@@ -187,7 +193,7 @@ function App() {
       }
 
       // Check if the bird hits the ground or flies off the screen
-      if (birdY + 15 > canvas.height || birdY - 15 < 0) {
+      if (birdY + 48 > canvas.height) {
         setIsGameOver(true);
         return;
       }
@@ -220,7 +226,7 @@ function App() {
           position: 'absolute',
           top: '10px',
           right: '10px',
-          color: 'black',
+          color: 'white',
           fontSize: '24px',
           fontFamily: 'Arial, sans-serif',
           zIndex: 1, // Ensure score text is on top
@@ -235,7 +241,7 @@ function App() {
             top: '50%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
-            color: 'black',
+            color: 'white',
             fontSize: '32px',
             fontFamily: 'Arial, sans-serif',
             textAlign: 'center',
@@ -252,7 +258,7 @@ function App() {
             top: '50%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
-            color: 'black',
+            color: 'white',
             fontSize: '32px',
             fontFamily: 'Arial, sans-serif',
             textAlign: 'center',
