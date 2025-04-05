@@ -257,15 +257,8 @@ function App() {
       if (checkCollision(birdY, canvas)) {
         setIsGameOver(true);
         setTimeout(() => {
-          // Display game over message after 0.5 seconds
           setIsGameOver(true);
         }, 500);
-        return;
-      }
-
-      // Check if the bird hits the ground or flies off the screen
-      if (birdY + 48 > canvas.height) {
-        setIsGameOver(true);
         return;
       }
 
@@ -281,7 +274,6 @@ function App() {
           if (!obstacle.passed && obstacle.x + obstacleWidth < 100) {
             obstacle.passed = true; // Mark the obstacle as passed
             setScore((prevScore) => prevScore + 1); // Increment the score
-            console.log(`Score incremented! Current score: ${score + 1}`); // Debug log
           }
         }
       };
