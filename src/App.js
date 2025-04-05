@@ -36,22 +36,27 @@ function App() {
     spawnInitialObstacles(canvas);
   };
 
+  // Move handleInput above handleKeyDown to fix the initialization error
+  const handleInput = useCallback(() => {
+    if (showStartMessage) {
+      setShowStartMessage(false); // Hide the start message
+    }
+    if (isGameOver) {
+      resetGame(canvasRef.current); // Reset the game
+    } else if (!isGameStarted) {
+      setIsGameStarted(true);
+      birdVelocityRef.current = -6; // Trigger a flap on the first input
+    } else {
+      birdVelocityRef.current = -6; // Flap strength
+    }
+  }, [isGameOver, isGameStarted, showStartMessage]);
+
   // Update the keydown handler to reset the game on space press when game is over
   const handleKeyDown = useCallback((event) => {
     if (event.code === 'Space') {
-      if (showStartMessage) {
-        setShowStartMessage(false); // Hide the start message
-      }
-      if (isGameOver) {
-        resetGame(canvasRef.current); // Reset the game
-      } else if (!isGameStarted) {
-        setIsGameStarted(true);
-        birdVelocityRef.current = -6; // Trigger a flap on the first spacebar press
-      } else {
-        birdVelocityRef.current = -6; // Flap strength
-      }
+      handleInput();
     }
-  }, [isGameOver, isGameStarted, showStartMessage]);
+  }, [handleInput]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -295,11 +300,19 @@ function App() {
   }, [isGameOver, isGameStarted]);
 
   useEffect(() => {
+    const handleMouseDown = () => handleInput();
+    const handleTouchStart = () => handleInput();
+
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('touchstart', handleTouchStart);
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('touchstart', handleTouchStart);
     };
-  }, [handleKeyDown]);
+  }, [handleKeyDown, handleInput]);
 
   return (
     <div className="App">
