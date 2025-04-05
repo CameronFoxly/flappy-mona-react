@@ -1,15 +1,15 @@
 {
   "files": {
     "main.css": "/flappy-mona-react/static/css/main.36501d76.css",
-    "main.js": "/flappy-mona-react/static/js/main.5148b501.js",
+    "main.js": "/flappy-mona-react/static/js/main.db01aebe.js",
     "static/js/453.9602a7ff.chunk.js": "/flappy-mona-react/static/js/453.9602a7ff.chunk.js",
     "index.html": "/flappy-mona-react/index.html",
     "main.36501d76.css.map": "/flappy-mona-react/static/css/main.36501d76.css.map",
-    "main.5148b501.js.map": "/flappy-mona-react/static/js/main.5148b501.js.map",
+    "main.db01aebe.js.map": "/flappy-mona-react/static/js/main.db01aebe.js.map",
     "453.9602a7ff.chunk.js.map": "/flappy-mona-react/static/js/453.9602a7ff.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.36501d76.css",
-    "static/js/main.5148b501.js"
+    "static/js/main.db01aebe.js"
   ]
 }
