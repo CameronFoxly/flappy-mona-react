@@ -15,17 +15,38 @@ function App() {
   const obstacleSpacing = 200; // Horizontal spacing between obstacles
   const obstacleSpeed = 1.5; // Speed of obstacle movement
 
+  // Add a function to reset the game state
+  const resetGame = (canvas) => {
+    birdVelocityRef.current = 0; // Reset bird velocity
+    setIsGameOver(false); // Reset game over state
+    setIsGameStarted(false); // Reset game started state
+    setShowStartMessage(true); // Show the start message
+    setScore(0); // Reset the score
+    obstaclesRef.current = []; // Clear all obstacles
+
+    // Reset bird position
+    const context = canvas.getContext('2d');
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = 'yellow';
+    context.beginPath();
+    context.arc(100, canvas.height / 2, 48, 0, Math.PI * 2);
+    context.fill();
+
+    // Spawn initial obstacles
+    spawnInitialObstacles(canvas);
+  };
+
+  // Update the keydown handler to reset the game on space press when game is over
   const handleKeyDown = useCallback((event) => {
     if (event.code === 'Space') {
       if (showStartMessage) {
         setShowStartMessage(false); // Hide the start message
       }
-      if (!isGameStarted) {
+      if (isGameOver) {
+        resetGame(canvasRef.current); // Reset the game
+      } else if (!isGameStarted) {
         setIsGameStarted(true);
         birdVelocityRef.current = -6; // Trigger a flap on the first spacebar press
-      } else if (isGameOver) {
-        setIsGameOver(false);
-        birdVelocityRef.current = 0; // Reset velocity
       } else {
         birdVelocityRef.current = -6; // Flap strength
       }
@@ -190,6 +211,51 @@ function App() {
         if (obstacle.x + obstacleWidth < 0) {
           obstaclesRef.current.splice(i, 1);
         }
+      }
+
+      // Add collision detection logic
+      const checkCollision = (birdY, canvas) => {
+        const birdRadius = 48; // Radius of the bird
+        const birdX = 100; // Fixed horizontal position of the bird
+      
+        for (let i = 0; i < obstaclesRef.current.length; i++) {
+          const obstacle = obstaclesRef.current[i];
+      
+          // Check collision with top obstacle
+          if (
+            birdX + birdRadius > obstacle.x &&
+            birdX - birdRadius < obstacle.x + obstacleWidth &&
+            birdY - birdRadius < obstacle.topHeight
+          ) {
+            return true;
+          }
+      
+          // Check collision with bottom obstacle
+          if (
+            birdX + birdRadius > obstacle.x &&
+            birdX - birdRadius < obstacle.x + obstacleWidth &&
+            birdY + birdRadius > obstacle.bottomY
+          ) {
+            return true;
+          }
+        }
+      
+        // Check if the bird hits the ground
+        if (birdY + birdRadius > canvas.height) {
+          return true;
+        }
+      
+        return false;
+      };
+      
+      // Update game loop to include collision logic
+      if (checkCollision(birdY, canvas)) {
+        setIsGameOver(true);
+        setTimeout(() => {
+          // Display game over message after 0.5 seconds
+          setIsGameOver(true);
+        }, 500);
+        return;
       }
 
       // Check if the bird hits the ground or flies off the screen
