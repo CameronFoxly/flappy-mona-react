@@ -6,6 +6,7 @@ body {
   align-items: center;
   height: 100vh;
   background-color: black; /* Set the background to black */
+  color: black; /* Set the text color to white */
 }
 
 canvas {

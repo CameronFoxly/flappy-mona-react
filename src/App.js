@@ -11,7 +11,7 @@ function App() {
 
   const flapStrength = -6;
   const obstacleWidth = 135; // Width of each obstacle
-  const obstacleGap = 250; // Gap between top and bottom parts of an obstacle
+  const obstacleGap = 400; // Update the gap between obstacles to 600px
   const obstacleSpacing = 200; // Horizontal spacing between obstacles
   const obstacleSpeed = 1.5; // Speed of obstacle movement
 
@@ -83,8 +83,8 @@ function App() {
   }, []);
 
   const generateObstacle = (xPosition, canvas) => {
-    const minGapY = canvas.height / 4; // Start of the middle two quarters
-    const maxGapY = (canvas.height * 3) / 4 - obstacleGap; // End of the middle two quarters
+    const minGapY = 100; // Start 100px from the top of the window
+    const maxGapY = canvas.height - 100 - obstacleGap; // End 100px from the bottom of the window
     const gapY = Math.random() * (maxGapY - minGapY) + minGapY; // Randomly position the gap
     return {
       x: xPosition,
@@ -95,7 +95,7 @@ function App() {
 
   const spawnInitialObstacles = (canvas) => {
     for (let i = 0; i < 5; i++) { // Spawn 5 obstacles initially
-      const xPosition = 150 + i * (obstacleWidth + obstacleSpacing); // Start 150px from the player
+      const xPosition = 450 + i * (obstacleWidth + obstacleSpacing); // Start 300px further to the right
       obstaclesRef.current.push(generateObstacle(xPosition, canvas));
     }
   };
