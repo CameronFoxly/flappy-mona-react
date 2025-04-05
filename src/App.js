@@ -14,6 +14,9 @@ import PlayerDeath2 from './assets/sprites/Player_Death2.png';
 import PlayerDeath3 from './assets/sprites/Player_Death3.png';
 import PlayerDeath4 from './assets/sprites/Player_Death4.png';
 import PlayerDeath5 from './assets/sprites/Player_Death5.png';
+// Import obstacle sprites
+import UpperObstacle from './assets/sprites/UpperObstacle.png';
+import LowerObstacle from './assets/sprites/LowerObstacle.png';
 
 function App() {
   const canvasRef = useRef(null);
@@ -67,6 +70,13 @@ function App() {
     frameTime: 66, // Adjust this value to control animation speed
     // Timer for current frame
     frameTimer: 0
+  });
+
+  // Add obstacle sprites references
+  const obstacleSpritesRef = useRef({
+    upper: null,
+    lower: null,
+    loaded: false
   });
 
   // Add a reference to track bird's Y position outside the game loop
@@ -163,6 +173,64 @@ function App() {
     }
   }, [handleInput]);
 
+  // Function to draw obstacles with sprites
+  const drawObstacles = useCallback((context, obstacles) => {
+    const obstacleSprites = obstacleSpritesRef.current;
+    
+    // Scale the obstacles to half the current size (0.5 instead of 1)
+    const spriteScale = 0.5;
+    
+    for (let i = 0; i < obstacles.length; i++) {
+      const obstacle = obstacles[i];
+      
+      if (obstacleSprites.loaded) {
+        // Draw top obstacle with sprite
+        if (obstacleSprites.upper) {
+          // Get sprite dimensions
+          const spriteWidth = obstacleSprites.upper.width * spriteScale;
+          const spriteHeight = obstacleSprites.upper.height * spriteScale;
+          
+          // Draw upper obstacle aligned to top edge, centered horizontally on obstacle x
+          context.drawImage(
+            obstacleSprites.upper,
+            obstacle.x - (spriteWidth - obstacleWidth) / 2, // Center sprite on obstacle x position
+            obstacle.topHeight - spriteHeight, // Position sprite so bottom edge is at topHeight
+            spriteWidth,
+            spriteHeight
+          );
+        }
+        
+        // Draw bottom obstacle with sprite
+        if (obstacleSprites.lower) {
+          // Get sprite dimensions
+          const spriteWidth = obstacleSprites.lower.width * spriteScale;
+          const spriteHeight = obstacleSprites.lower.height * spriteScale;
+          
+          // Draw lower obstacle aligned to bottom edge, centered horizontally on obstacle x
+          context.drawImage(
+            obstacleSprites.lower,
+            obstacle.x - (spriteWidth - obstacleWidth) / 2, // Center sprite on obstacle x position
+            obstacle.bottomY, // Position sprite so top edge is at bottomY
+            spriteWidth,
+            spriteHeight
+          );
+        }
+      } else {
+        // Fallback to original colored rectangles if sprites not loaded
+        context.fillStyle = 'green';
+        context.fillRect(obstacle.x, 0, obstacleWidth, obstacle.topHeight);
+        
+        context.fillStyle = 'red';
+        context.fillRect(
+          obstacle.x,
+          obstacle.bottomY,
+          obstacleWidth,
+          GAME_HEIGHT - obstacle.bottomY
+        );
+      }
+    }
+  }, [obstacleWidth]);
+
   // Function to draw current game state (used during resizing)
   const drawCurrentGameState = useCallback(() => {
     const canvas = canvasRef.current;
@@ -178,6 +246,10 @@ function App() {
     
     // Apply the transform
     applyTransform(canvas);
+    
+    // Draw background (sky)
+    context.fillStyle = '#87CEFA'; // Light sky blue background
+    context.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
     
     // Draw bird at middle point
     const birdY = GAME_HEIGHT / 2;
@@ -218,22 +290,9 @@ function App() {
       context.fill();
     }
     
-    // Draw obstacles
-    obstaclesRef.current.forEach(obstacle => {
-      // Draw top obstacle
-      context.fillStyle = 'green';
-      context.fillRect(obstacle.x, 0, obstacleWidth, obstacle.topHeight);
-      
-      // Draw bottom obstacle
-      context.fillStyle = 'red';
-      context.fillRect(
-        obstacle.x,
-        obstacle.bottomY,
-        obstacleWidth,
-        GAME_HEIGHT - obstacle.bottomY
-      );
-    });
-  }, [applyTransform, isGameStarted, isGameOver, obstacleWidth]);
+    // Draw obstacles using new function
+    drawObstacles(context, obstaclesRef.current);
+  }, [applyTransform, isGameStarted, isGameOver, drawObstacles]);
 
   // Initialize and resize canvas
   useEffect(() => {
@@ -305,7 +364,7 @@ function App() {
       });
     };
     
-    // Load all player frames
+    // Load all player frames and obstacle sprites
     Promise.all([
       loadImage(PlayerFrame1),
       loadImage(PlayerFrame2),
@@ -319,13 +378,19 @@ function App() {
       loadImage(PlayerDeath2),
       loadImage(PlayerDeath3),
       loadImage(PlayerDeath4),
-      loadImage(PlayerDeath5)
+      loadImage(PlayerDeath5),
+      // Load obstacle sprites
+      loadImage(UpperObstacle),
+      loadImage(LowerObstacle)
     ]).then(images => {
       // Store loaded images in refs
       playerSpritesRef.current.frames = images.slice(0, 7);
-      playerSpritesRef.current.deathFrames = images.slice(7);
+      playerSpritesRef.current.deathFrames = images.slice(7, 12);
+      obstacleSpritesRef.current.upper = images[12];
+      obstacleSpritesRef.current.lower = images[13];
+      obstacleSpritesRef.current.loaded = true;
       
-      console.log('All player sprites loaded successfully');
+      console.log('All sprites loaded successfully');
       
       // Force a redraw to show the loaded sprites
       const canvas = canvasRef.current;
@@ -519,22 +584,7 @@ function App() {
       // Draw obstacles - prevent movement unless the game has started
       if (!isGameStarted) {
         // Draw obstacles in their static initial positions
-        for (let i = 0; i < obstaclesRef.current.length; i++) {
-          const obstacle = obstaclesRef.current[i];
-          
-          // Draw top obstacle
-          context.fillStyle = 'green';
-          context.fillRect(obstacle.x, 0, obstacleWidth, obstacle.topHeight);
-          
-          // Draw bottom obstacle
-          context.fillStyle = 'red';
-          context.fillRect(
-            obstacle.x,
-            obstacle.bottomY,
-            obstacleWidth,
-            GAME_HEIGHT - obstacle.bottomY
-          );
-        }
+        drawObstacles(context, obstaclesRef.current);
         
         animationFrameIdRef.current = requestAnimationFrame(gameLoop);
         return;
@@ -549,48 +599,22 @@ function App() {
 
       // Move obstacles (only if game is active)
       if (!isGameOver) {
-        // Move and draw obstacles
+        // Move obstacles
         for (let i = obstaclesRef.current.length - 1; i >= 0; i--) {
           const obstacle = obstaclesRef.current[i];
           obstacle.x -= obstacleSpeed * clampedDeltaTime;
 
-          // Draw top obstacle
-          context.fillStyle = 'green';
-          context.fillRect(obstacle.x, 0, obstacleWidth, obstacle.topHeight);
-
-          // Draw bottom obstacle
-          context.fillStyle = 'red';
-          context.fillRect(
-            obstacle.x,
-            obstacle.bottomY,
-            obstacleWidth,
-            GAME_HEIGHT - obstacle.bottomY
-          );
-
           // Remove obstacles that go completely off-screen
-          // Make sure they're completely off the left edge with some buffer
           if (obstacle.x + obstacleWidth < -100) {
             obstaclesRef.current.splice(i, 1);
           }
         }
+        
+        // Draw obstacles after movement
+        drawObstacles(context, obstaclesRef.current);
       } else {
         // Just draw obstacles in their current positions without moving them
-        for (let i = 0; i < obstaclesRef.current.length; i++) {
-          const obstacle = obstaclesRef.current[i];
-          
-          // Draw top obstacle
-          context.fillStyle = 'green';
-          context.fillRect(obstacle.x, 0, obstacleWidth, obstacle.topHeight);
-          
-          // Draw bottom obstacle
-          context.fillStyle = 'red';
-          context.fillRect(
-            obstacle.x,
-            obstacle.bottomY,
-            obstacleWidth,
-            GAME_HEIGHT - obstacle.bottomY
-          );
-        }
+        drawObstacles(context, obstaclesRef.current);
       }
 
       // Check collisions and end game if needed
@@ -642,7 +666,7 @@ function App() {
         cancelAnimationFrame(animationFrameIdRef.current);
       }
     };
-  }, [isGameOver, isGameStarted, applyTransform, bufferObstacles]);
+  }, [isGameOver, isGameStarted, applyTransform, bufferObstacles, drawObstacles]);
 
   // Check collisions
   const checkCollision = useCallback(() => {
