@@ -5,7 +5,7 @@ body {
   justify-content: center;
   align-items: center;
   height: 100vh;
-  background-color: #87CEEB; /* Sky blue background */
+  background-color: black; /* Set the background to black */
 }
 
 canvas {
@@ -37,7 +37,7 @@ canvas {
   align-items: center;
   justify-content: center;
   font-size: calc(10px + 2vmin);
-  color: white;
+  color: black;
 }
 
 .App-link {
