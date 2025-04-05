@@ -8,12 +8,18 @@ function App() {
   const [isGameOver, setIsGameOver] = useState(false);
   const [isGameStarted, setIsGameStarted] = useState(false); // Track if the game has started
   const [showStartMessage, setShowStartMessage] = useState(true); // Track if the start message is visible
+  
+  // Add time tracking references
+  const lastTimestampRef = useRef(0);
+  const animationFrameIdRef = useRef(null);
 
-  const flapStrength = -6;
+  // Game constants - speed values now represent units per second rather than per frame
+  const flapStrength = -350; // Adjusted for per-second calculation
   const obstacleWidth = 135; // Width of each obstacle
-  const obstacleGap = 400; // Update the gap between obstacles to 400px
+  const obstacleGap = 400; // Gap between obstacles
   const obstacleSpacing = 200; // Horizontal spacing between obstacles
-  const obstacleSpeed = 1.5; // Speed of obstacle movement
+  const obstacleSpeed = 200; // Speed in pixels per second (was 1.5 pixels per frame)
+  const gravity = 900; // Gravity in pixels per second squared (was 0.2 pixels per frame)
 
   // Add a function to reset the game state
   const resetGame = (canvas) => {
@@ -45,9 +51,9 @@ function App() {
       resetGame(canvasRef.current); // Reset the game
     } else if (!isGameStarted) {
       setIsGameStarted(true);
-      birdVelocityRef.current = -6; // Trigger a flap on the first input
+      birdVelocityRef.current = flapStrength; // Trigger a flap on the first input
     } else {
-      birdVelocityRef.current = -6; // Flap strength
+      birdVelocityRef.current = flapStrength; // Flap strength (now in pixels per second)
     }
   }, [isGameOver, isGameStarted, showStartMessage]);
 
@@ -153,9 +159,21 @@ function App() {
     const context = canvas.getContext('2d');
 
     let birdY = canvas.height / 2;
-    const gravity = 0.2; // Adjusted gravity to make it less strong
+    
+    // Initialize the timestamp reference
+    lastTimestampRef.current = 0;
 
-    const gameLoop = () => {
+    const gameLoop = (timestamp) => {
+      // Calculate delta time in seconds
+      if (lastTimestampRef.current === 0) {
+        lastTimestampRef.current = timestamp;
+      }
+      const deltaTime = (timestamp - lastTimestampRef.current) / 1000; // Convert to seconds
+      lastTimestampRef.current = timestamp;
+      
+      // Clamp deltaTime to prevent huge jumps if the tab was in background
+      const clampedDeltaTime = Math.min(deltaTime, 0.1);
+
       context.clearRect(0, 0, canvas.width, canvas.height);
 
       if (!isGameStarted) {
@@ -181,12 +199,13 @@ function App() {
             canvas.height - obstacle.bottomY
           );
         }
+        animationFrameIdRef.current = requestAnimationFrame(gameLoop);
         return;
       }
 
-      // Apply gravity and update bird's position
-      birdVelocityRef.current += gravity;
-      birdY += birdVelocityRef.current;
+      // Apply gravity and update bird's position with deltaTime
+      birdVelocityRef.current += gravity * clampedDeltaTime;
+      birdY += birdVelocityRef.current * clampedDeltaTime;
 
       // Draw the bird
       context.fillStyle = 'yellow';
@@ -194,10 +213,10 @@ function App() {
       context.arc(100, birdY, 48, 0, Math.PI * 2);
       context.fill();
 
-      // Move obstacles
+      // Move obstacles with deltaTime
       for (let i = obstaclesRef.current.length - 1; i >= 0; i--) {
         const obstacle = obstaclesRef.current[i];
-        obstacle.x -= obstacleSpeed;
+        obstacle.x -= obstacleSpeed * clampedDeltaTime;
 
         // Draw top obstacle
         context.fillStyle = 'green'; // Sets the color for the obstacles
@@ -256,9 +275,6 @@ function App() {
       // Update game loop to include collision logic
       if (checkCollision(birdY, canvas)) {
         setIsGameOver(true);
-        setTimeout(() => {
-          setIsGameOver(true);
-        }, 500);
         return;
       }
 
@@ -282,13 +298,21 @@ function App() {
       updateScore();
 
       if (!isGameOver) {
-        requestAnimationFrame(gameLoop);
+        animationFrameIdRef.current = requestAnimationFrame(gameLoop);
       }
     };
 
     if (!isGameOver) {
-      gameLoop();
+      // Start the game loop
+      animationFrameIdRef.current = requestAnimationFrame(gameLoop);
     }
+
+    // Clean up function to cancel animation frame
+    return () => {
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+      }
+    };
   }, [isGameOver, isGameStarted]);
 
   useEffect(() => {
