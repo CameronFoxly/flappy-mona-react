@@ -3,12 +3,17 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 function App() {
   const canvasRef = useRef(null);
   const birdVelocityRef = useRef(0); // Use useRef for birdVelocity
+  const obstaclesRef = useRef([]); // Use useRef for obstacles
   const [score, setScore] = useState(0);
   const [isGameOver, setIsGameOver] = useState(false);
   const [isGameStarted, setIsGameStarted] = useState(false); // Track if the game has started
   const [showStartMessage, setShowStartMessage] = useState(true); // Track if the start message is visible
 
   const flapStrength = -6;
+  const obstacleWidth = 135; // Width of each obstacle
+  const obstacleGap = 250; // Gap between top and bottom parts of an obstacle
+  const obstacleSpacing = 200; // Horizontal spacing between obstacles
+  const obstacleSpeed = 1.5; // Speed of obstacle movement
 
   const handleKeyDown = useCallback((event) => {
     if (event.code === 'Space') {
@@ -34,14 +39,84 @@ function App() {
     const resizeCanvas = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
+
+      // Redraw the initial state of the game after resizing
+      context.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw the bird in its initial position
+      context.fillStyle = 'yellow';
+      context.beginPath();
+      context.arc(100, canvas.height / 2, 48, 0, Math.PI * 2);
+      context.fill();
+
+      // Adjust obstacle positions to be anchored relative to the middle of the window
+      const previousCanvasMiddleY = canvas.height / 2;
+      const newCanvasMiddleY = window.innerHeight / 2;
+      obstaclesRef.current.forEach((obstacle) => {
+        const offsetFromMiddle = obstacle.topHeight - previousCanvasMiddleY;
+        obstacle.topHeight = newCanvasMiddleY + offsetFromMiddle;
+        obstacle.bottomY = obstacle.topHeight + obstacleGap;
+      });
+
+      // Draw initial obstacles
+      context.fillStyle = 'green';
+      for (let i = 0; i < obstaclesRef.current.length; i++) {
+        const obstacle = obstaclesRef.current[i];
+        // Draw top obstacle
+        context.fillRect(obstacle.x, 0, obstacleWidth, obstacle.topHeight);
+        // Draw bottom obstacle
+        context.fillRect(
+          obstacle.x,
+          obstacle.bottomY,
+          obstacleWidth,
+          canvas.height - obstacle.bottomY
+        );
+      }
     };
 
     window.addEventListener('resize', resizeCanvas);
-    resizeCanvas(); // Set initial canvas size
+    resizeCanvas(); // Set initial canvas size and draw content
 
     return () => {
       window.removeEventListener('resize', resizeCanvas);
     };
+  }, []);
+
+  const generateObstacle = (xPosition, canvas) => {
+    const minGapY = canvas.height / 4; // Start of the middle two quarters
+    const maxGapY = (canvas.height * 3) / 4 - obstacleGap; // End of the middle two quarters
+    const gapY = Math.random() * (maxGapY - minGapY) + minGapY; // Randomly position the gap
+    return {
+      x: xPosition,
+      topHeight: gapY,
+      bottomY: gapY + obstacleGap, // Ensure consistent gap
+    };
+  };
+
+  const spawnInitialObstacles = (canvas) => {
+    for (let i = 0; i < 5; i++) { // Spawn 5 obstacles initially
+      const xPosition = 150 + i * (obstacleWidth + obstacleSpacing); // Start 150px from the player
+      obstaclesRef.current.push(generateObstacle(xPosition, canvas));
+    }
+  };
+
+  const spawnObstacle = (canvas) => {
+    const lastObstacle = obstaclesRef.current[obstaclesRef.current.length - 1];
+    const xPosition = lastObstacle.x + obstacleWidth + obstacleSpacing;
+    obstaclesRef.current.push(generateObstacle(xPosition, canvas));
+  };
+
+  const bufferObstacles = (canvas) => {
+    const lastObstacle = obstaclesRef.current[obstaclesRef.current.length - 1];
+    if (lastObstacle && lastObstacle.x + obstacleWidth + obstacleSpacing < canvas.width) {
+      spawnObstacle(canvas);
+    }
+  };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    spawnInitialObstacles(canvas); // Spawn obstacles when the game initializes
+    spawnObstacle(canvas);
   }, []);
 
   useEffect(() => {
@@ -58,8 +133,23 @@ function App() {
         // Draw the bird in its initial position
         context.fillStyle = 'yellow';
         context.beginPath();
-        context.arc(100, birdY, 15, 0, Math.PI * 2);
+        context.arc(100, birdY, 48, 0, Math.PI * 2);
         context.fill();
+
+        // Draw initial obstacles
+        context.fillStyle = 'green';
+        for (let i = 0; i < obstaclesRef.current.length; i++) {
+          const obstacle = obstaclesRef.current[i];
+          // Draw top obstacle
+          context.fillRect(obstacle.x, 0, obstacleWidth, obstacle.topHeight);
+          // Draw bottom obstacle
+          context.fillRect(
+            obstacle.x,
+            obstacle.bottomY,
+            obstacleWidth,
+            canvas.height - obstacle.bottomY
+          );
+        }
         return;
       }
 
@@ -70,14 +160,40 @@ function App() {
       // Draw the bird
       context.fillStyle = 'yellow';
       context.beginPath();
-      context.arc(100, birdY, 15, 0, Math.PI * 2);
+      context.arc(100, birdY, 48, 0, Math.PI * 2);
       context.fill();
+
+      // Move obstacles
+      for (let i = obstaclesRef.current.length - 1; i >= 0; i--) {
+        const obstacle = obstaclesRef.current[i];
+        obstacle.x -= obstacleSpeed;
+
+        // Draw top obstacle
+        context.fillStyle = 'green'; // Sets the color for the obstacles
+        context.fillRect(obstacle.x, 0, obstacleWidth, obstacle.topHeight);
+
+        // Draw bottom obstacle
+        context.fillRect(
+          obstacle.x,
+          obstacle.bottomY,
+          obstacleWidth,
+          canvas.height - obstacle.bottomY
+        );
+
+        // Remove obstacles that go off-screen
+        if (obstacle.x + obstacleWidth < 0) {
+          obstaclesRef.current.splice(i, 1);
+        }
+      }
 
       // Check if the bird hits the ground or flies off the screen
       if (birdY + 15 > canvas.height || birdY - 15 < 0) {
         setIsGameOver(true);
         return;
       }
+
+      // Buffer new obstacles
+      bufferObstacles(canvas);
 
       if (!isGameOver) {
         requestAnimationFrame(gameLoop);
