@@ -8,7 +8,7 @@ function App() {
   const [isGameStarted, setIsGameStarted] = useState(false); // Track if the game has started
   const [showStartMessage, setShowStartMessage] = useState(true); // Track if the start message is visible
 
-  const flapStrength = -10;
+  const flapStrength = -6;
 
   const handleKeyDown = useCallback((event) => {
     if (event.code === 'Space') {
@@ -17,12 +17,12 @@ function App() {
       }
       if (!isGameStarted) {
         setIsGameStarted(true);
-        birdVelocityRef.current = -10; // Trigger a flap on the first spacebar press
+        birdVelocityRef.current = -6; // Trigger a flap on the first spacebar press
       } else if (isGameOver) {
         setIsGameOver(false);
         birdVelocityRef.current = 0; // Reset velocity
       } else {
-        birdVelocityRef.current = -10; // Flap strength
+        birdVelocityRef.current = -6; // Flap strength
       }
     }
   }, [isGameOver, isGameStarted, showStartMessage]);
@@ -104,7 +104,7 @@ function App() {
           position: 'absolute',
           top: '10px',
           right: '10px',
-          color: 'white',
+          color: 'black',
           fontSize: '24px',
           fontFamily: 'Arial, sans-serif',
           zIndex: 1, // Ensure score text is on top
