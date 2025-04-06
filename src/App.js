@@ -84,7 +84,7 @@ function App() {
   });
 
   // Add a reference to track bird's Y position outside the game loop
-  const birdYRef = useRef(GAME_HEIGHT / 2);
+  const birdYRef = useRef(GAME_HEIGHT / 4); // Adjusted starting position to be higher
   const finalDeathPositionRef = useRef(GAME_HEIGHT / 2); // Store final position on death
 
   // Add collision detection data references
@@ -602,7 +602,7 @@ function App() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     
-    let birdY = GAME_HEIGHT / 2;
+    let birdY = GAME_HEIGHT / 2.5; // Updated to match the birdYRef initial position
     birdYRef.current = birdY; // Initialize the ref
     lastTimestampRef.current = 0;
 
