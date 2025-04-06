@@ -83,6 +83,15 @@ function App() {
   const birdYRef = useRef(GAME_HEIGHT / 2);
   const finalDeathPositionRef = useRef(GAME_HEIGHT / 2); // Store final position on death
 
+  // Add collision detection data references
+  const collisionDataRef = useRef({
+    // Collision canvas for off-screen pixel detection
+    canvas: null,
+    context: null,
+    // Flag to indicate if collision data is initialized
+    initialized: false
+  });
+
   // Add a function to reset the game state
   const resetGame = useCallback((canvas) => {
     birdVelocityRef.current = 0;
@@ -172,6 +181,108 @@ function App() {
       handleInput();
     }
   }, [handleInput]);
+
+  // Bounding box collision as fallback
+  const checkBoundingBoxCollision = useCallback(() => {
+    const birdRadius = 48; // Doubled from 24 to 48
+    const birdX = 100;
+    const birdY = birdYRef.current; // Use the ref value
+  
+    // Check collision with obstacles
+    for (let i = 0; i < obstaclesRef.current.length; i++) {
+      const obstacle = obstaclesRef.current[i];
+  
+      if (
+        birdX + birdRadius > obstacle.x &&
+        birdX - birdRadius < obstacle.x + obstacleWidth
+      ) {
+        // Check collision with top obstacle
+        if (birdY - birdRadius < obstacle.topHeight) {
+          return true;
+        }
+        
+        // Check collision with bottom obstacle
+        if (birdY + birdRadius > obstacle.bottomY) {
+          return true;
+        }
+      }
+    }
+  
+    // Check if the bird hits the boundaries
+    if (birdY + birdRadius > GAME_HEIGHT || birdY - birdRadius < 0) {
+      return true;
+    }
+  
+    return false;
+  }, [obstacleWidth]);
+
+  // Pixel-perfect collision detection
+  const checkPixelCollision = useCallback(() => {
+    if (!collisionDataRef.current.initialized || !obstacleSpritesRef.current.loaded) {
+      // Fall back to bounding box collision if not initialized
+      return checkBoundingBoxCollision();
+    }
+
+    const birdX = 100;
+    const birdY = birdYRef.current;
+    const spriteSize = 96;
+    const playerSprites = playerSpritesRef.current;
+    
+    // Get current frame for player
+    const frameIndex = playerSprites.isFlapping 
+      ? playerSprites.flapSequence[playerSprites.currentFrame]
+      : 3; // Default to frame 4 when not flapping
+      
+    if (!playerSprites.frames || !playerSprites.frames[frameIndex]) {
+      // Fall back to bounding box collision if sprites not loaded
+      return checkBoundingBoxCollision();
+    }
+    
+    // Check for collisions with game boundaries
+    if (birdY - spriteSize/2 < 0 || birdY + spriteSize/2 > GAME_HEIGHT) {
+      return true;
+    }
+    
+    // Define a tighter collision hitbox for the bird (reducing by 30% from each side)
+    const hitboxReduction = spriteSize * 0.3;
+    const birdBounds = {
+      left: birdX - spriteSize/2 + hitboxReduction,
+      right: birdX + spriteSize/2 - hitboxReduction,
+      top: birdY - spriteSize/2 + hitboxReduction,
+      bottom: birdY + spriteSize/2 - hitboxReduction
+    };
+    
+    // For each obstacle, check collision
+    for (let i = 0; i < obstaclesRef.current.length; i++) {
+      const obstacle = obstaclesRef.current[i];
+      
+      // Skip if obstacle is completely past the bird
+      if (obstacle.x > birdBounds.right) {
+        continue; // Bird hasn't reached this obstacle yet
+      }
+      
+      // Skip if bird is completely past the obstacle
+      if (birdBounds.left > obstacle.x + obstacleWidth) {
+        continue; // Bird has already passed this obstacle
+      }
+      
+      // At this point we know there's horizontal overlap, now check vertical collision
+      
+      // Check for collision with top obstacle - adjust for visual height of sprite
+      // The sprite for top obstacle extends visually above the topHeight boundary
+      const upperSpriteHeight = obstacleSpritesRef.current.upper ? obstacleSpritesRef.current.upper.height * 0.5 : 0;
+      if (birdBounds.top < obstacle.topHeight) {
+        return true;
+      }
+      
+      // Check for collision with bottom obstacle
+      if (birdBounds.bottom > obstacle.bottomY) {
+        return true;
+      }
+    }
+    
+    return false; // No collision
+  }, [checkBoundingBoxCollision, obstacleWidth]);
 
   // Function to draw obstacles with sprites
   const drawObstacles = useCallback((context, obstacles) => {
@@ -402,6 +513,32 @@ function App() {
     });
   }, [drawCurrentGameState]);
 
+  // Initialize collision detection system
+  useEffect(() => {
+    // Create offscreen canvas for collision detection
+    const collisionCanvas = document.createElement('canvas');
+    const collisionContext = collisionCanvas.getContext('2d', { willReadFrequently: true });
+    
+    // Set size based on game dimensions
+    collisionCanvas.width = GAME_WIDTH;
+    collisionCanvas.height = GAME_HEIGHT;
+    
+    // Store for later use
+    collisionDataRef.current.canvas = collisionCanvas;
+    collisionDataRef.current.context = collisionContext;
+    collisionDataRef.current.initialized = true;
+    
+    // Debug logging
+    console.log('Collision detection system initialized');
+    
+    return () => {
+      // Clean up
+      collisionDataRef.current.initialized = false;
+      collisionDataRef.current.canvas = null;
+      collisionDataRef.current.context = null;
+    };
+  }, []);
+
   // Generate a new obstacle at a specific X position
   const generateObstacle = useCallback((xPosition) => {
     const minGapY = 100; // Minimum start for gap
@@ -619,8 +756,8 @@ function App() {
 
       // Check collisions and end game if needed
       if (!isGameOver) {
-        // Use the checkCollision function defined above
-        if (checkCollision()) {
+        // Use pixel-perfect collision instead of bounding box
+        if (checkPixelCollision()) {
           // Store final bird position at the moment of death
           finalDeathPositionRef.current = birdYRef.current;
           
@@ -666,41 +803,7 @@ function App() {
         cancelAnimationFrame(animationFrameIdRef.current);
       }
     };
-  }, [isGameOver, isGameStarted, applyTransform, bufferObstacles, drawObstacles]);
-
-  // Check collisions
-  const checkCollision = useCallback(() => {
-    const birdRadius = 48; // Doubled from 24 to 48
-    const birdX = 100;
-    const birdY = birdYRef.current; // Use the ref value
-  
-    // Check collision with obstacles
-    for (let i = 0; i < obstaclesRef.current.length; i++) {
-      const obstacle = obstaclesRef.current[i];
-  
-      if (
-        birdX + birdRadius > obstacle.x &&
-        birdX - birdRadius < obstacle.x + obstacleWidth
-      ) {
-        // Check collision with top obstacle
-        if (birdY - birdRadius < obstacle.topHeight) {
-          return true;
-        }
-        
-        // Check collision with bottom obstacle
-        if (birdY + birdRadius > obstacle.bottomY) {
-          return true;
-        }
-      }
-    }
-  
-    // Check if the bird hits the boundaries
-    if (birdY + birdRadius > GAME_HEIGHT || birdY - birdRadius < 0) {
-      return true;
-    }
-  
-    return false;
-  }, []);
+  }, [isGameOver, isGameStarted, applyTransform, bufferObstacles, drawObstacles, checkPixelCollision]);
 
   // Input handlers
   useEffect(() => {
