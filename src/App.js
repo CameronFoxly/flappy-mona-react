@@ -47,7 +47,7 @@ function App() {
   // Game constants - speed values now represent units per second rather than per frame
   const flapStrength = -400;
   const obstacleWidth = 100; // Scaled for game world size
-  const obstacleGap = 200;  // Scaled for game world size
+  const obstacleGap = 180;  // Scaled for game world size
   const obstacleSpacing = 200;
   const obstacleSpeed = 150;
   const gravity = 1200;
@@ -71,7 +71,7 @@ function App() {
     // Flag to hide the bird after death animation completes
     hideAfterDeath: false,
     // Frame time in milliseconds (time each frame should be shown)
-    frameTime: 80, // Adjust this value to control animation speed
+    frameTime: 100, // Adjust this value to control animation speed
     // Timer for current frame
     frameTimer: 0
   });
@@ -95,6 +95,47 @@ function App() {
     // Flag to indicate if collision data is initialized
     initialized: false
   });
+
+  // Utility function to apply current transform to canvas
+  const applyTransform = useCallback((canvas) => {
+    if (!canvas) return;
+    
+    const context = canvas.getContext('2d');
+    context.setTransform(1, 0, 0, 1, 0, 0); // Reset transform first
+    
+    // Disable image smoothing for crisp pixel art
+    context.imageSmoothingEnabled = false;
+    context.mozImageSmoothingEnabled = false;
+    context.webkitImageSmoothingEnabled = false;
+    context.msImageSmoothingEnabled = false;
+    
+    context.translate(offsetXRef.current, offsetYRef.current);
+    context.scale(scaleRef.current, scaleRef.current);
+  }, []);
+
+  // Generate a new obstacle at a specific X position
+  const generateObstacle = useCallback((xPosition) => {
+    const minGapY = 100; // Minimum start for gap
+    const maxGapY = GAME_HEIGHT - 100 - obstacleGap; // Maximum start for gap
+    const gapY = Math.floor(Math.random() * (maxGapY - minGapY + 1)) + minGapY;
+
+    return {
+      x: xPosition,
+      topHeight: gapY,
+      bottomY: gapY + obstacleGap,
+      passed: false
+    };
+  }, [obstacleGap]);
+
+  // Spawn initial obstacles
+  const spawnInitialObstacles = useCallback(() => {
+    obstaclesRef.current = []; // Clear existing obstacles
+    
+    for (let i = 0; i < 5; i++) {
+      const xPosition = 450 + i * (obstacleWidth + obstacleSpacing);
+      obstaclesRef.current.push(generateObstacle(xPosition));
+    }
+  }, [generateObstacle, obstacleSpacing, obstacleWidth]);
 
   // Add a function to reset the game state
   const resetGame = useCallback((canvas) => {
@@ -122,36 +163,7 @@ function App() {
     
     // Spawn initial obstacles
     spawnInitialObstacles();
-  }, []);
-
-  // Utility function to apply current transform to canvas
-  const applyTransform = useCallback((canvas) => {
-    if (!canvas) return;
-    
-    const context = canvas.getContext('2d');
-    context.setTransform(1, 0, 0, 1, 0, 0); // Reset transform first
-    
-    // Disable image smoothing for crisp pixel art
-    context.imageSmoothingEnabled = false;
-    context.mozImageSmoothingEnabled = false;
-    context.webkitImageSmoothingEnabled = false;
-    context.msImageSmoothingEnabled = false;
-    
-    context.translate(offsetXRef.current, offsetYRef.current);
-    context.scale(scaleRef.current, scaleRef.current);
-  }, []);
-
-  // Convert window coordinates to game world coordinates
-  const windowToGameCoords = useCallback((clientX, clientY) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    
-    const rect = canvas.getBoundingClientRect();
-    const x = (clientX - rect.left - offsetXRef.current) / scaleRef.current;
-    const y = (clientY - rect.top - offsetYRef.current) / scaleRef.current;
-    
-    return { x, y };
-  }, []);
+  }, [applyTransform, spawnInitialObstacles]);
 
   // Handle user input - start flap animation
   const handleInput = useCallback(() => {
@@ -177,7 +189,7 @@ function App() {
       playerSpritesRef.current.currentFrame = 0; // Start with the first frame in sequence
       playerSpritesRef.current.frameTimer = 0;   // Reset frame timer
     }
-  }, [isGameOver, isGameStarted, showStartMessage, resetGame]);
+  }, [flapStrength, isGameOver, isGameStarted, resetGame, showStartMessage]);
 
   // Handle keydown events
   const handleKeyDown = useCallback((event) => {
@@ -273,8 +285,6 @@ function App() {
       // At this point we know there's horizontal overlap, now check vertical collision
       
       // Check for collision with top obstacle - adjust for visual height of sprite
-      // The sprite for top obstacle extends visually above the topHeight boundary
-      const upperSpriteHeight = obstacleSpritesRef.current.upper ? obstacleSpritesRef.current.upper.height * 0.5 : 0;
       if (birdBounds.top < obstacle.topHeight) {
         return true;
       }
@@ -534,51 +544,31 @@ function App() {
     collisionCanvas.height = GAME_HEIGHT;
     
     // Store for later use
-    collisionDataRef.current.canvas = collisionCanvas;
-    collisionDataRef.current.context = collisionContext;
-    collisionDataRef.current.initialized = true;
+    collisionDataRef.current = {
+      canvas: collisionCanvas,
+      context: collisionContext,
+      initialized: true
+    };
     
     // Debug logging
     console.log('Collision detection system initialized');
     
     return () => {
-      // Clean up
-      collisionDataRef.current.initialized = false;
-      collisionDataRef.current.canvas = null;
-      collisionDataRef.current.context = null;
+      const currentCollisionData = collisionDataRef.current;
+      if (currentCollisionData) {
+        currentCollisionData.initialized = false;
+        currentCollisionData.canvas = null;
+        currentCollisionData.context = null;
+      }
     };
   }, []);
-
-  // Generate a new obstacle at a specific X position
-  const generateObstacle = useCallback((xPosition) => {
-    const minGapY = 100; // Minimum start for gap
-    const maxGapY = GAME_HEIGHT - 100 - obstacleGap; // Maximum start for gap
-    const gapY = Math.floor(Math.random() * (maxGapY - minGapY + 1)) + minGapY;
-
-    return {
-      x: xPosition,
-      topHeight: gapY,
-      bottomY: gapY + obstacleGap,
-      passed: false
-    };
-  }, []);
-
-  // Spawn initial obstacles
-  const spawnInitialObstacles = useCallback(() => {
-    obstaclesRef.current = []; // Clear existing obstacles
-    
-    for (let i = 0; i < 5; i++) {
-      const xPosition = 450 + i * (obstacleWidth + obstacleSpacing);
-      obstaclesRef.current.push(generateObstacle(xPosition));
-    }
-  }, [generateObstacle]);
 
   // Spawn a single new obstacle
   const spawnObstacle = useCallback(() => {
     const lastObstacle = obstaclesRef.current[obstaclesRef.current.length - 1];
     const xPosition = lastObstacle.x + obstacleWidth + obstacleSpacing;
     obstaclesRef.current.push(generateObstacle(xPosition));
-  }, [generateObstacle]);
+  }, [generateObstacle, obstacleSpacing, obstacleWidth]);
 
   // Buffer obstacles to maintain a steady stream
   const bufferObstacles = useCallback(() => {
@@ -813,7 +803,7 @@ function App() {
         cancelAnimationFrame(animationFrameIdRef.current);
       }
     };
-  }, [isGameOver, isGameStarted, applyTransform, bufferObstacles, drawObstacles, checkPixelCollision]);
+  }, [isGameOver, isGameStarted, applyTransform, bufferObstacles, drawObstacles, checkPixelCollision, gravity, obstacleSpeed]);
 
   // Input handlers
   useEffect(() => {
@@ -850,7 +840,6 @@ function App() {
             opacity: assetsLoaded ? 0 : 1,
             transition: 'opacity 1s ease-in-out',
             pointerEvents: 'none',
-            zIndex: 1
           }}
         ></div>
       )}
