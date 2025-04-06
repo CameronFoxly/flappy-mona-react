@@ -45,12 +45,12 @@ function App() {
   const offsetYRef = useRef(0);
 
   // Game constants - speed values now represent units per second rather than per frame
-  const flapStrength = -350;
+  const flapStrength = -400;
   const obstacleWidth = 100; // Scaled for game world size
   const obstacleGap = 200;  // Scaled for game world size
   const obstacleSpacing = 200;
   const obstacleSpeed = 150;
-  const gravity = 900;
+  const gravity = 1200;
 
   // Add sprite references
   const playerSpritesRef = useRef({
@@ -71,7 +71,7 @@ function App() {
     // Flag to hide the bird after death animation completes
     hideAfterDeath: false,
     // Frame time in milliseconds (time each frame should be shown)
-    frameTime: 66, // Adjust this value to control animation speed
+    frameTime: 80, // Adjust this value to control animation speed
     // Timer for current frame
     frameTimer: 0
   });
