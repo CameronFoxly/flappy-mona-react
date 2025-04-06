@@ -861,12 +861,15 @@ function App() {
       <div
         style={{
           position: 'absolute',
-          top: '10px',
+          top: '10px', // Adjusted to be 10px from the top of the viewport
           right: '10px',
           color: 'white',
           fontSize: '24px',
-          fontFamily: 'Arial, sans-serif',
-          zIndex: 1,
+          fontFamily: 'PixeloidSans',
+          zIndex: 3, // Ensure it appears above the black bar
+          backgroundColor: 'black', // Black bar background
+          padding: '10px', // Padding around text
+          borderRadius: '5px', // Optional: rounded corners for better aesthetics
         }}
       >
         Score: {score}
@@ -882,9 +885,12 @@ function App() {
             transform: 'translate(-50%, -50%)',
             color: 'white',
             fontSize: '32px',
-            fontFamily: 'Arial, sans-serif',
+            fontFamily: 'PixeloidSans', // Updated font family
             textAlign: 'center',
             zIndex: 1,
+            backgroundColor: 'black', // Black bar background
+            padding: '10px', // Padding around text
+            borderRadius: '5px', // Optional: rounded corners for better aesthetics
           }}
         >
           Press Space to Flap
@@ -901,14 +907,30 @@ function App() {
             transform: 'translate(-50%, -50%)',
             color: 'white',
             fontSize: '32px',
-            fontFamily: 'Arial, sans-serif',
+            fontFamily: 'PixeloidSans', // Updated font family
             textAlign: 'center',
             zIndex: 1,
+            backgroundColor: 'black', // Black bar background
+            padding: '10px', // Padding around text
+            borderRadius: '5px', // Optional: rounded corners for better aesthetics
           }}
         >
           Game Over! Press Space to Restart.
         </div>
       )}
+
+      {/* Black bar overlay for future controls */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '50px', // Height of the black bar
+          backgroundColor: 'black',
+          zIndex: 2, // Ensure it appears above other elements
+        }}
+      ></div>
     </div>
   );
 }
