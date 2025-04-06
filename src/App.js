@@ -155,12 +155,14 @@ function App() {
     const ground = groundBackgroundRef.current;
     if (ground.loaded) {
       ground.positions = [0]; // Reset positions to start at 0
-      const numInstances = Math.ceil(GAME_WIDTH / (ground.width * groundWidth)) + 1;
+      const numInstances = Math.ceil(GAME_WIDTH / (ground.width * groundWidth)) + 10;
       for (let i = 1; i < numInstances; i++) {
         ground.positions.push(i * ground.width * groundWidth);
       }
     }
   }, []);
+
+  
 
   // Update resetGame to delay ground reset until flap
   const resetGame = useCallback((canvas) => {
@@ -192,6 +194,8 @@ function App() {
 
     // Spawn initial obstacles
     spawnInitialObstacles();
+
+    initializeGroundBackground(); // Initialize ground background during game reset
   }, [applyTransform, spawnInitialObstacles]);
 
   // Handle user input - start flap animation
@@ -553,9 +557,6 @@ function App() {
 
       console.log('All sprites including ground background loaded successfully');
 
-      // Initialize ground background layer
-      initializeGroundBackground();
-
       // Set assets as loaded
       setAssetsLoaded(true);
 
@@ -637,7 +638,7 @@ function App() {
       ground.positions = [0]; // Start with one instance at x=0
 
       // Add additional instances to cover the screen width plus buffer
-      const numInstances = Math.ceil(GAME_WIDTH / (ground.width * groundWidth)) + 5; // Use global groundWidth
+      const numInstances = Math.ceil(GAME_WIDTH / (ground.width * groundWidth)) +1 ; // Use global groundWidth
       for (let i = 1; i < numInstances; i++) {
         ground.positions.push(i * ground.width * groundWidth); // Use global groundWidth
       }
