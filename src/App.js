@@ -27,6 +27,10 @@ function App() {
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [showStartMessage, setShowStartMessage] = useState(true);
   
+  // Add loading state
+  const [assetsLoaded, setAssetsLoaded] = useState(false);
+  const [fadeOut, setFadeOut] = useState(false);
+
   // Time tracking references
   const lastTimestampRef = useRef(0);
   const animationFrameIdRef = useRef(null);
@@ -503,6 +507,12 @@ function App() {
       
       console.log('All sprites loaded successfully');
       
+      // Set assets as loaded
+      setAssetsLoaded(true);
+
+      // Trigger fade-out effect
+      setTimeout(() => setFadeOut(true), 500); // Delay fade-out slightly
+
       // Force a redraw to show the loaded sprites
       const canvas = canvasRef.current;
       if (canvas) {
@@ -826,6 +836,25 @@ function App() {
 
   return (
     <div className="App">
+      {/* Black overlay for loading screen */}
+      {!fadeOut && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'black',
+            zIndex: 10,
+            opacity: assetsLoaded ? 0 : 1,
+            transition: 'opacity 1s ease-in-out',
+            pointerEvents: 'none',
+            zIndex: 1
+          }}
+        ></div>
+      )}
+
       <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} />
       
       {/* Score display - using fixed game coordinates */}
