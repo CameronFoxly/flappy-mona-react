@@ -17,6 +17,7 @@ import PlayerDeath5 from './assets/sprites/Player_Death5.png';
 // Import obstacle sprites
 import UpperObstacle from './assets/sprites/UpperObstacle.png';
 import LowerObstacle from './assets/sprites/LowerObstacle.png';
+import GroundBackground from './assets/sprites/background1_ground.png';
 
 function App() {
   const canvasRef = useRef(null);
@@ -52,6 +53,9 @@ function App() {
   const obstacleSpeed = 150;
   const gravity = 1200;
 
+  // Ground background constants
+  const groundSpeed = obstacleSpeed * .9; // Ground moves at 80% of obstacle speed
+
   // Add sprite references
   const playerSpritesRef = useRef({
     // Animation frames
@@ -81,6 +85,15 @@ function App() {
     upper: null,
     lower: null,
     loaded: false
+  });
+
+  // Add ground background reference
+  const groundBackgroundRef = useRef({
+    image: null,
+    positions: [0], // Array to hold x positions for continuous scrolling
+    loaded: false,
+    width: 0, // Will be set dynamically when the image loads
+    height: 0
   });
 
   // Add a reference to track bird's Y position outside the game loop
@@ -137,7 +150,19 @@ function App() {
     }
   }, [generateObstacle, obstacleSpacing, obstacleWidth]);
 
-  // Add a function to reset the game state
+  // Add a function to reset the ground layer
+  const resetGroundBackground = useCallback(() => {
+    const ground = groundBackgroundRef.current;
+    if (ground.loaded) {
+      ground.positions = [0]; // Reset positions to start at 0
+      const numInstances = Math.ceil(GAME_WIDTH / (ground.width * groundWidth)) + 1;
+      for (let i = 1; i < numInstances; i++) {
+        ground.positions.push(i * ground.width * groundWidth);
+      }
+    }
+  }, []);
+
+  // Update resetGame to delay ground reset until flap
   const resetGame = useCallback((canvas) => {
     birdVelocityRef.current = 0;
     setIsGameOver(false);
@@ -153,14 +178,18 @@ function App() {
     playerSpritesRef.current.isFlapping = false;
     playerSpritesRef.current.currentFrame = 0;
 
-    // Reset bird position and obstacles
+    // Reset bird position
+    birdYRef.current = GAME_HEIGHT / 4; // Reset to starting position
+
+    // Reset obstacles
     const context = canvas.getContext('2d');
     context.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
     context.clearRect(0, 0, canvas.width, canvas.height);
-    
+
+
     // Apply scaling transform
     applyTransform(canvas);
-    
+
     // Spawn initial obstacles
     spawnInitialObstacles();
   }, [applyTransform, spawnInitialObstacles]);
@@ -170,26 +199,27 @@ function App() {
     if (showStartMessage) {
       setShowStartMessage(false);
     }
-    
+
     if (isGameOver) {
       resetGame(canvasRef.current);
+      resetGroundBackground(); // Reset ground only when flap is pressed after game over
     } else if (!isGameStarted) {
       setIsGameStarted(true);
       birdVelocityRef.current = flapStrength;
-      
+
       // Start flapping animation
       playerSpritesRef.current.isFlapping = true;
       playerSpritesRef.current.currentFrame = 0; // Start with the first frame in sequence
       playerSpritesRef.current.frameTimer = 0;   // Reset frame timer
     } else {
       birdVelocityRef.current = flapStrength;
-      
+
       // Start flapping animation
       playerSpritesRef.current.isFlapping = true;
       playerSpritesRef.current.currentFrame = 0; // Start with the first frame in sequence
       playerSpritesRef.current.frameTimer = 0;   // Reset frame timer
     }
-  }, [flapStrength, isGameOver, isGameStarted, resetGame, showStartMessage]);
+  }, [flapStrength, isGameOver, isGameStarted, resetGame, resetGroundBackground, showStartMessage]);
 
   // Handle keydown events
   const handleKeyDown = useCallback((event) => {
@@ -488,8 +518,8 @@ function App() {
         img.src = src;
       });
     };
-    
-    // Load all player frames and obstacle sprites
+
+    // Load all player frames, obstacle sprites, and ground background
     Promise.all([
       loadImage(PlayerFrame1),
       loadImage(PlayerFrame2),
@@ -498,15 +528,14 @@ function App() {
       loadImage(PlayerFrame5),
       loadImage(PlayerFrame6),
       loadImage(PlayerFrame7),
-      // Load death animation frames
       loadImage(PlayerDeath1),
       loadImage(PlayerDeath2),
       loadImage(PlayerDeath3),
       loadImage(PlayerDeath4),
       loadImage(PlayerDeath5),
-      // Load obstacle sprites
       loadImage(UpperObstacle),
-      loadImage(LowerObstacle)
+      loadImage(LowerObstacle),
+      loadImage(GroundBackground) // Load ground background
     ]).then(images => {
       // Store loaded images in refs
       playerSpritesRef.current.frames = images.slice(0, 7);
@@ -514,14 +543,24 @@ function App() {
       obstacleSpritesRef.current.upper = images[12];
       obstacleSpritesRef.current.lower = images[13];
       obstacleSpritesRef.current.loaded = true;
-      
-      console.log('All sprites loaded successfully');
-      
+
+      // Set up ground background
+      const groundImg = images[14];
+      groundBackgroundRef.current.image = groundImg;
+      groundBackgroundRef.current.width = groundImg.width;
+      groundBackgroundRef.current.height = groundImg.height;
+      groundBackgroundRef.current.loaded = true;
+
+      console.log('All sprites including ground background loaded successfully');
+
+      // Initialize ground background layer
+      initializeGroundBackground();
+
       // Set assets as loaded
       setAssetsLoaded(true);
 
       // Trigger fade-out effect
-      setTimeout(() => setFadeOut(true), 500); // Delay fade-out slightly
+      setTimeout(() => setFadeOut(true), 500);
 
       // Force a redraw to show the loaded sprites
       const canvas = canvasRef.current;
@@ -587,23 +626,76 @@ function App() {
     spawnInitialObstacles();
   }, [spawnInitialObstacles]);
 
+  // Global variable for ground width scaling
+  const groundWidth = 0.4; // Scale factor for ground width
+
+  // Initialize ground background layer
+  const initializeGroundBackground = useCallback(() => {
+    const ground = groundBackgroundRef.current;
+
+    if (ground.loaded && ground.width > 0) {
+      ground.positions = [0]; // Start with one instance at x=0
+
+      // Add additional instances to cover the screen width plus buffer
+      const numInstances = Math.ceil(GAME_WIDTH / (ground.width * groundWidth)) + 5; // Use global groundWidth
+      for (let i = 1; i < numInstances; i++) {
+        ground.positions.push(i * ground.width * groundWidth); // Use global groundWidth
+      }
+
+      console.log('Ground background initialized with positions:', ground.positions);
+    }
+  }, []);
+
+  // Update ground background positions for infinite scrolling
+  const updateGroundBackground = useCallback((deltaTime) => {
+    if (!isGameStarted || isGameOver) return; // Only update if the game is active
+
+    const ground = groundBackgroundRef.current;
+
+    if (ground.loaded) {
+      for (let i = 0; i < ground.positions.length; i++) {
+        // Move ground to the left at 80% of obstacle speed
+        ground.positions[i] -= groundSpeed * deltaTime;
+
+        // If a ground segment has moved completely off-screen, reposition it to the right
+        if (ground.positions[i] + ground.width * groundWidth < 0) { // Use global groundWidth
+          const rightmostPos = Math.max(...ground.positions);
+          ground.positions[i] = rightmostPos + ground.width * groundWidth; // Use global groundWidth
+        }
+      }
+    }
+  }, [groundSpeed, isGameStarted, isGameOver]);
+
+  // Draw ground background layer
+  const drawGroundBackground = useCallback((context) => {
+    const ground = groundBackgroundRef.current;
+
+    if (ground.loaded && ground.image) {
+      ground.positions.forEach((xPos) => {
+        context.drawImage(
+          ground.image,
+          Math.floor(xPos),
+          GAME_HEIGHT - ground.height * groundWidth, // Use global groundWidth
+          ground.width * groundWidth, // Use global groundWidth
+          ground.height * groundWidth // Use global groundWidth
+        );
+      });
+    }
+  }, []);
+
   // Main game loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
-    let birdY = GAME_HEIGHT / 2.5; // Updated to match the birdYRef initial position
-    birdYRef.current = birdY; // Initialize the ref
-    lastTimestampRef.current = 0;
 
     const gameLoop = (timestamp) => {
       if (lastTimestampRef.current === 0) {
         lastTimestampRef.current = timestamp;
       }
-      
+
       const deltaTime = (timestamp - lastTimestampRef.current) / 1000;
       lastTimestampRef.current = timestamp;
-      
+
       // Clamp deltaTime to prevent huge jumps
       const clampedDeltaTime = Math.min(deltaTime, 0.1);
 
@@ -613,9 +705,20 @@ function App() {
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.clearRect(0, 0, canvas.width, canvas.height);
       context.restore();
-      
+
       // Apply scaling transform
       applyTransform(canvas);
+
+      // Draw the ground background layer before obstacles
+      drawGroundBackground(context);
+
+      // Update ground background position if game is active
+      if (isGameStarted && !isGameOver) {
+        updateGroundBackground(clampedDeltaTime);
+      }
+
+      // Draw obstacles after the ground background
+      drawObstacles(context, obstaclesRef.current);
 
       // Update sprite animation
       const playerSprites = playerSpritesRef.current;
@@ -654,6 +757,7 @@ function App() {
 
       // Draw bird at current position
       const spriteSize = 96;
+      let birdY = birdYRef.current; // Ensure birdY is declared and initialized
       
       if (!isGameStarted) {
         // Draw the bird in its initial position using sprite
@@ -803,7 +907,7 @@ function App() {
         cancelAnimationFrame(animationFrameIdRef.current);
       }
     };
-  }, [isGameOver, isGameStarted, applyTransform, bufferObstacles, drawObstacles, checkPixelCollision, gravity, obstacleSpeed]);
+  }, [isGameOver, isGameStarted, applyTransform, bufferObstacles, drawObstacles, checkPixelCollision, gravity, obstacleSpeed, drawGroundBackground, updateGroundBackground]);
 
   // Input handlers
   useEffect(() => {
