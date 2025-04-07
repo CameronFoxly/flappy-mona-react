@@ -733,9 +733,15 @@ function App() {
     // Add obstacles when the last one is fully visible in the game world
     const lastObstacle = obstaclesRef.current[obstaclesRef.current.length - 1];
     
-    // Add new obstacles when the last one is fully on screen
-    // GAME_WIDTH is the width of our virtual game world
-    if (lastObstacle && lastObstacle.x < GAME_WIDTH) {
+    if (!lastObstacle) return;
+    
+    // Calculate the visible width of the game area in game units
+    // This accounts for the actual screen width transformed to game coordinates
+    const visibleGameWidth = window.innerWidth / scaleRef.current;
+    
+    // Add new obstacles when the last one is within the visible area plus some buffer
+    // This ensures obstacles are spawned before they become visible on wide screens
+    if (lastObstacle.x < visibleGameWidth + 200) {
       spawnObstacle();
     }
   }, [spawnObstacle]);
