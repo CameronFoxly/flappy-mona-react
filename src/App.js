@@ -18,6 +18,7 @@ import PlayerDeath5 from './assets/sprites/Player_Death5.png';
 import UpperObstacle from './assets/sprites/UpperObstacle.png';
 import LowerObstacle from './assets/sprites/LowerObstacle.png';
 import GroundBackground from './assets/sprites/background1_ground.png';
+import MidGroundBackground from './assets/sprites/MidGround.png';
 
 function App() {
   const canvasRef = useRef(null);
@@ -54,7 +55,9 @@ function App() {
   const gravity = 1200;
 
   // Ground background constants
-  const groundSpeed = obstacleSpeed * .9; // Ground moves at 80% of obstacle speed
+  const groundSpeed = obstacleSpeed * .9; // Ground moves at 90% of obstacle speed
+  // MidGround background constants
+  const midGroundSpeed = obstacleSpeed * .7; // MidGround moves at 80% of obstacle speed
 
   // Add sprite references
   const playerSpritesRef = useRef({
@@ -89,6 +92,15 @@ function App() {
 
   // Add ground background reference
   const groundBackgroundRef = useRef({
+    image: null,
+    positions: [0], // Array to hold x positions for continuous scrolling
+    loaded: false,
+    width: 0, // Will be set dynamically when the image loads
+    height: 0
+  });
+
+  // Add midground background reference
+  const midGroundBackgroundRef = useRef({
     image: null,
     positions: [0], // Array to hold x positions for continuous scrolling
     loaded: false,
@@ -168,6 +180,21 @@ function App() {
     }
   }, []);
 
+  // Initialize midground background layer
+  const initializeMidGroundBackground = useCallback(() => {
+    const midGround = midGroundBackgroundRef.current;
+
+    if (midGround.loaded && midGround.width > 0) {
+      midGround.positions = [0]; // Start with one instance at x=0
+
+      // Add additional instances to cover the screen width plus buffer
+      const numInstances = Math.ceil(GAME_WIDTH / (midGround.width * groundWidth)) + 10; // Use same scaling as ground
+      for (let i = 1; i < numInstances; i++) {
+        midGround.positions.push(i * midGround.width * groundWidth); // Use global groundWidth
+      }
+    }
+  }, []);
+
   // Add a function to reset the ground layer
   const resetGroundBackground = useCallback(() => {
     const ground = groundBackgroundRef.current;
@@ -176,6 +203,18 @@ function App() {
       const numInstances = Math.ceil(GAME_WIDTH / (ground.width * groundWidth)) + 10;
       for (let i = 1; i < numInstances; i++) {
         ground.positions.push(i * ground.width * groundWidth);
+      }
+    }
+  }, []);
+
+  // Add a function to reset the midground layer
+  const resetMidGroundBackground = useCallback(() => {
+    const midGround = midGroundBackgroundRef.current;
+    if (midGround.loaded) {
+      midGround.positions = [0]; // Reset positions to start at 0
+      const numInstances = Math.ceil(GAME_WIDTH / (midGround.width * groundWidth)) + 10;
+      for (let i = 1; i < numInstances; i++) {
+        midGround.positions.push(i * midGround.width * groundWidth);
       }
     }
   }, []);
@@ -204,15 +243,16 @@ function App() {
     context.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
     context.clearRect(0, 0, canvas.width, canvas.height);
 
-
     // Apply scaling transform
     applyTransform(canvas);
 
     // Spawn initial obstacles
     spawnInitialObstacles();
 
-    initializeGroundBackground(); // Initialize ground background during game reset
-  }, [applyTransform, spawnInitialObstacles, initializeGroundBackground]);
+    // Initialize background layers during game reset
+    initializeGroundBackground();
+    initializeMidGroundBackground();
+  }, [applyTransform, spawnInitialObstacles, initializeGroundBackground, initializeMidGroundBackground]);
 
   // Handle user input - start flap animation
   const handleInput = useCallback(() => {
@@ -558,7 +598,8 @@ function App() {
       loadImage(PlayerDeath5),
       loadImage(UpperObstacle),
       loadImage(LowerObstacle),
-      loadImage(GroundBackground) // Load ground background
+      loadImage(GroundBackground), // Load ground background
+      loadImage(MidGroundBackground) // Load midground background
     ]).then(images => {
       // Store loaded images in refs
       playerSpritesRef.current.frames = images.slice(0, 7);
@@ -569,14 +610,23 @@ function App() {
 
       // Only set up ground background if this is the first load
       if (isFirstLoad) {
+        // Set up ground background
         const groundImg = images[14];
         groundBackgroundRef.current.image = groundImg;
         groundBackgroundRef.current.width = groundImg.width;
         groundBackgroundRef.current.height = groundImg.height;
         groundBackgroundRef.current.loaded = true;
 
-        // Initialize ground background only on first load
+        // Set up midground background
+        const midGroundImg = images[15];
+        midGroundBackgroundRef.current.image = midGroundImg;
+        midGroundBackgroundRef.current.width = midGroundImg.width;
+        midGroundBackgroundRef.current.height = midGroundImg.height;
+        midGroundBackgroundRef.current.loaded = true;
+
+        // Initialize both background layers on first load
         initializeGroundBackground();
+        initializeMidGroundBackground();
       }
 
       // Set assets as loaded
@@ -657,7 +707,7 @@ function App() {
 
     if (ground.loaded) {
       for (let i = 0; i < ground.positions.length; i++) {
-        // Move ground to the left at 80% of obstacle speed
+        // Move ground to the left at 90% of obstacle speed
         ground.positions[i] -= groundSpeed * deltaTime;
 
         // If a ground segment has moved completely off-screen, reposition it to the right
@@ -668,6 +718,27 @@ function App() {
       }
     }
   }, [groundSpeed, isGameStarted, isGameOver]);
+
+  // Update midground background positions for infinite scrolling
+  const updateMidGroundBackground = useCallback((deltaTime) => {
+    // Only update if the game is active (neither game over nor not started)
+    if (!isGameStarted || isGameOver) return;
+
+    const midGround = midGroundBackgroundRef.current;
+
+    if (midGround.loaded) {
+      for (let i = 0; i < midGround.positions.length; i++) {
+        // Move midground to the left at 80% of obstacle speed
+        midGround.positions[i] -= midGroundSpeed * deltaTime;
+
+        // If a midground segment has moved completely off-screen, reposition it to the right
+        if (midGround.positions[i] + midGround.width * groundWidth < 0) {
+          const rightmostPos = Math.max(...midGround.positions);
+          midGround.positions[i] = rightmostPos + midGround.width * groundWidth;
+        }
+      }
+    }
+  }, [midGroundSpeed, isGameStarted, isGameOver]);
 
   // Draw ground background layer
   const drawGroundBackground = useCallback((context) => {
@@ -681,6 +752,23 @@ function App() {
           GAME_HEIGHT - ground.height * groundWidth, // Use global groundWidth
           ground.width * groundWidth, // Use global groundWidth
           ground.height * groundWidth // Use global groundWidth
+        );
+      });
+    }
+  }, []);
+
+  // Draw midground background layer
+  const drawMidGroundBackground = useCallback((context) => {
+    const midGround = midGroundBackgroundRef.current;
+
+    if (midGround.loaded && midGround.image) {
+      midGround.positions.forEach((xPos) => {
+        context.drawImage(
+          midGround.image,
+          Math.floor(xPos),
+          GAME_HEIGHT - midGround.height * groundWidth, // Use same scaling as ground
+          midGround.width * groundWidth,
+          midGround.height * groundWidth
         );
       });
     }
@@ -712,14 +800,16 @@ function App() {
       // Apply scaling transform
       applyTransform(canvas);
 
-      // Draw the ground background layer before obstacles
+      
+      // Draw the midground background layer (further back)
+      drawMidGroundBackground(context);
+      
+      // Draw the ground background layer (closer to foreground)
       drawGroundBackground(context);
-
-      // Update ground background position
+      
+      // Update midground and ground positions if game is active
+      updateMidGroundBackground(clampedDeltaTime);
       updateGroundBackground(clampedDeltaTime);
-
-      // Draw obstacles after the ground background
-      drawObstacles(context, obstaclesRef.current);
 
       // Update sprite animation
       const playerSprites = playerSpritesRef.current;
@@ -908,7 +998,7 @@ function App() {
         cancelAnimationFrame(animationFrameIdRef.current);
       }
     };
-  }, [isGameOver, isGameStarted, applyTransform, bufferObstacles, drawObstacles, checkPixelCollision, gravity, obstacleSpeed, drawGroundBackground, updateGroundBackground]);
+  }, [isGameOver, isGameStarted, applyTransform, bufferObstacles, drawObstacles, checkPixelCollision, gravity, obstacleSpeed, drawGroundBackground, updateGroundBackground, drawMidGroundBackground, updateMidGroundBackground]);
 
   // Input handlers
   useEffect(() => {
