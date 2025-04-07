@@ -26,6 +26,11 @@ function App() {
   const birdVelocityRef = useRef(0);
   const obstaclesRef = useRef([]);
   const [score, setScore] = useState(0);
+  const [highScore, setHighScore] = useState(() => {
+    // Initialize highScore from localStorage or default to 0
+    const savedHighScore = localStorage.getItem('flappyMonaHighScore');
+    return savedHighScore ? parseInt(savedHighScore, 10) : 0;
+  });
   const [isGameOver, setIsGameOver] = useState(false);
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [showStartMessage, setShowStartMessage] = useState(true);
@@ -60,7 +65,7 @@ function App() {
   // MidGround background constants
   const midGroundSpeed = obstacleSpeed * .7; // MidGround moves at 80% of obstacle speed
   // Cloud background constants
-  const cloudSpeed = obstacleSpeed * .4; // Clouds move at 60% of obstacle speed
+  const cloudSpeed = obstacleSpeed * .4; // Clouds move at 40% of obstacle speed
   const cloudSpacing = 500; // Each cloud is 800px apart
 
   // Add sprite references
@@ -1121,6 +1126,16 @@ function App() {
     };
   }, [handleKeyDown, handleInput]);
 
+  // Effect to update high score when score changes
+  useEffect(() => {
+    // Only update high score if it's beaten and the game is in progress
+    if (score > highScore && isGameStarted) {
+      setHighScore(score);
+      // Save to localStorage for persistence
+      localStorage.setItem('flappyMonaHighScore', score.toString());
+    }
+  }, [score, highScore, isGameStarted]);
+
   return (
     <div className="App">
       {/* Black overlay for loading screen */}
@@ -1147,7 +1162,7 @@ function App() {
       <div
         style={{
           position: 'absolute',
-          top: '0px', // Adjusted to be 10px from the top of the viewport
+          top: '0px',
           right: '0px',
           color: 'white',
           fontSize: '24px',
@@ -1156,9 +1171,13 @@ function App() {
           backgroundColor: 'black', // Black bar background
           padding: '10px', // Padding around text
           borderRadius: '5px', // Optional: rounded corners for better aesthetics
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-end'
         }}
       >
-        Score: {score}
+        <div>Score: {score}</div>
+        <div>Best: {highScore}</div>
       </div>
       
       {/* Start message */}
