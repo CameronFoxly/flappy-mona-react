@@ -1,6 +1,6 @@
 # Flappy Mona
 
-Flappy Mona is a browser-based game inspired by the classic "Flappy Bird." In this game, you control a bird (Mona) and navigate through a series of obstacles to achieve the highest score possible.
+Flappy Mona is a browser-based game inspired by the classic "Flappy Bird" starring Mona the Octocat. In this game, you control a bird (Mona) and navigate through a series of obstacles to achieve the highest score possible.
 
 [Live demo here.](https://cameronfoxly.github.io/flappy-mona-react/)
 
