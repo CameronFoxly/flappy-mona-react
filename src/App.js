@@ -19,6 +19,7 @@ import UpperObstacle from './assets/sprites/UpperObstacle.png';
 import LowerObstacle from './assets/sprites/LowerObstacle.png';
 import GroundBackground from './assets/sprites/background1_ground.png';
 import MidGroundBackground from './assets/sprites/MidGround.png';
+import CloudSprite from './assets/sprites/cloud.png';
 
 function App() {
   const canvasRef = useRef(null);
@@ -58,6 +59,9 @@ function App() {
   const groundSpeed = obstacleSpeed * .9; // Ground moves at 90% of obstacle speed
   // MidGround background constants
   const midGroundSpeed = obstacleSpeed * .7; // MidGround moves at 80% of obstacle speed
+  // Cloud background constants
+  const cloudSpeed = obstacleSpeed * .5; // Clouds move at 60% of obstacle speed
+  const cloudSpacing = 800; // Each cloud is 800px apart
 
   // Add sprite references
   const playerSpritesRef = useRef({
@@ -105,6 +109,15 @@ function App() {
     positions: [0], // Array to hold x positions for continuous scrolling
     loaded: false,
     width: 0, // Will be set dynamically when the image loads
+    height: 0
+  });
+
+  // Add cloud reference
+  const cloudRef = useRef({
+    image: null,
+    positions: [], // Will store cloud positions (x starts at 400, y at 30% of screen height)
+    loaded: false,
+    width: 0,
     height: 0
   });
 
@@ -200,6 +213,27 @@ function App() {
       }
     }
   }, []);
+
+  // Initialize cloud layer
+  const initializeCloudBackground = useCallback(() => {
+    const cloud = cloudRef.current;
+
+    if (cloud.loaded && cloud.width > 0) {
+      cloud.positions = []; // Reset positions
+      
+      // Calculate how many clouds we need to cover the screen width
+      // Start at 400px and space each cloud 800px apart
+      const startX = 400;
+      const cloudCount = Math.ceil((window.innerWidth / scaleRef.current) / cloudSpacing) + 2; // Add some buffer
+      
+      for (let i = 0; i < cloudCount; i++) {
+        cloud.positions.push({
+          x: startX + i * cloudSpacing,
+          y: GAME_HEIGHT * 0.15 // Position at 30% from the top of the screen
+        });
+      }
+    }
+  }, [cloudSpacing]);
 
   // Add a function to reset the ground layer
   const resetGroundBackground = useCallback(() => {
@@ -468,9 +502,6 @@ function App() {
     // Apply the transform
     applyTransform(canvas);
     
-    // Draw background (sky)
-    context.fillStyle = '#87CEFA'; // Light sky blue background
-    context.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
     
     // Draw bird at middle point
     const birdY = GAME_HEIGHT / 2;
@@ -588,7 +619,7 @@ function App() {
       });
     };
 
-    // Load all player frames, obstacle sprites, and ground background
+    // Load all player frames, obstacle sprites, and background layers
     Promise.all([
       loadImage(PlayerFrame1),
       loadImage(PlayerFrame2),
@@ -604,8 +635,9 @@ function App() {
       loadImage(PlayerDeath5),
       loadImage(UpperObstacle),
       loadImage(LowerObstacle),
-      loadImage(GroundBackground), // Load ground background
-      loadImage(MidGroundBackground) // Load midground background
+      loadImage(GroundBackground),   // Load ground background
+      loadImage(MidGroundBackground), // Load midground background
+      loadImage(CloudSprite)         // Load cloud sprite
     ]).then(images => {
       // Store loaded images in refs
       playerSpritesRef.current.frames = images.slice(0, 7);
@@ -614,7 +646,7 @@ function App() {
       obstacleSpritesRef.current.lower = images[13];
       obstacleSpritesRef.current.loaded = true;
 
-      // Only set up ground background if this is the first load
+      // Only set up background layers if this is the first load
       if (isFirstLoad) {
         // Set up ground background
         const groundImg = images[14];
@@ -629,10 +661,18 @@ function App() {
         midGroundBackgroundRef.current.width = midGroundImg.width;
         midGroundBackgroundRef.current.height = midGroundImg.height;
         midGroundBackgroundRef.current.loaded = true;
+        
+        // Set up cloud sprite
+        const cloudImg = images[16];
+        cloudRef.current.image = cloudImg;
+        cloudRef.current.width = cloudImg.width;
+        cloudRef.current.height = cloudImg.height;
+        cloudRef.current.loaded = true;
 
-        // Initialize both background layers on first load
+        // Initialize all background layers on first load
         initializeGroundBackground();
         initializeMidGroundBackground();
+        initializeCloudBackground();
       }
 
       // Set assets as loaded
@@ -734,7 +774,7 @@ function App() {
 
     if (midGround.loaded) {
       for (let i = 0; i < midGround.positions.length; i++) {
-        // Move midground to the left at 80% of obstacle speed
+        // Move midground to the left at 70% of obstacle speed
         midGround.positions[i] -= midGroundSpeed * deltaTime;
 
         // If a midground segment has moved completely off-screen, reposition it to the right
@@ -745,6 +785,35 @@ function App() {
       }
     }
   }, [midGroundSpeed, isGameStarted, isGameOver]);
+
+  // Update cloud positions for infinite scrolling
+  const updateCloudBackground = useCallback((deltaTime) => {
+    // Only update if the game is active (neither game over nor not started)
+    if (!isGameStarted || isGameOver) return;
+
+    const cloud = cloudRef.current;
+
+    if (cloud.loaded) {
+      for (let i = 0; i < cloud.positions.length; i++) {
+        // Move clouds to the left at 60% of obstacle speed
+        cloud.positions[i].x -= cloudSpeed * deltaTime;
+
+        // If a cloud has moved completely off-screen, reposition it to the right
+        if (cloud.positions[i].x + cloud.width * groundWidth < -cloud.width) {
+          // Find the rightmost cloud's position
+          let rightmostPos = -Infinity;
+          for (let j = 0; j < cloud.positions.length; j++) {
+            if (cloud.positions[j].x > rightmostPos) {
+              rightmostPos = cloud.positions[j].x;
+            }
+          }
+          
+          // Set this cloud's position to be cloudSpacing distance from the rightmost cloud
+          cloud.positions[i].x = rightmostPos + cloudSpacing;
+        }
+      }
+    }
+  }, [cloudSpeed, cloudSpacing, isGameStarted, isGameOver]);
 
   // Draw ground background layer
   const drawGroundBackground = useCallback((context) => {
@@ -780,6 +849,23 @@ function App() {
     }
   }, []);
 
+  // Draw cloud layer
+  const drawCloudBackground = useCallback((context) => {
+    const cloud = cloudRef.current;
+
+    if (cloud.loaded && cloud.image) {
+      cloud.positions.forEach((pos) => {
+        context.drawImage(
+          cloud.image,
+          Math.floor(pos.x),
+          Math.floor(pos.y),
+          cloud.width * groundWidth,
+          cloud.height * groundWidth
+        );
+      });
+    }
+  }, []);
+
   // Main game loop
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -805,15 +891,18 @@ function App() {
 
       // Apply scaling transform
       applyTransform(canvas);
-
       
-      // Draw the midground background layer (further back)
+      // Draw the cloud layer (furthest back)
+      drawCloudBackground(context);
+      
+      // Draw the midground background layer (middle layer)
       drawMidGroundBackground(context);
       
-      // Draw the ground background layer (closer to foreground)
+      // Draw the ground background layer (closest to foreground)
       drawGroundBackground(context);
       
-      // Update midground and ground positions if game is active
+      // Update all background layers
+      updateCloudBackground(clampedDeltaTime);
       updateMidGroundBackground(clampedDeltaTime);
       updateGroundBackground(clampedDeltaTime);
 
@@ -1004,7 +1093,7 @@ function App() {
         cancelAnimationFrame(animationFrameIdRef.current);
       }
     };
-  }, [isGameOver, isGameStarted, applyTransform, bufferObstacles, drawObstacles, checkPixelCollision, gravity, obstacleSpeed, drawGroundBackground, updateGroundBackground, drawMidGroundBackground, updateMidGroundBackground]);
+  }, [isGameOver, isGameStarted, applyTransform, bufferObstacles, drawObstacles, checkPixelCollision, gravity, obstacleSpeed, drawGroundBackground, updateGroundBackground, drawMidGroundBackground, updateMidGroundBackground, drawCloudBackground, updateCloudBackground]);
 
   // Input handlers
   useEffect(() => {
