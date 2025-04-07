@@ -156,7 +156,13 @@ function App() {
   const spawnInitialObstacles = useCallback(() => {
     obstaclesRef.current = []; // Clear existing obstacles
     
-    for (let i = 0; i < 5; i++) {
+    // Calculate how many obstacles we need to cover the screen width
+    // Add extra obstacles for very wide screens (at least 8 obstacle pairs, more on wider screens)
+    const minObstacleCount = 8;
+    const screenBasedCount = Math.ceil((window.innerWidth / scaleRef.current) / (obstacleWidth + obstacleSpacing)) + 2;
+    const obstacleCount = Math.max(minObstacleCount, screenBasedCount);
+    
+    for (let i = 0; i < obstacleCount; i++) {
       const xPosition = 450 + i * (obstacleWidth + obstacleSpacing);
       obstaclesRef.current.push(generateObstacle(xPosition));
     }
