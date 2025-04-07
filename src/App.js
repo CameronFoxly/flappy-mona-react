@@ -161,12 +161,10 @@ function App() {
       ground.positions = [0]; // Start with one instance at x=0
 
       // Add additional instances to cover the screen width plus buffer
-      const numInstances = Math.ceil(GAME_WIDTH / (ground.width * groundWidth)) +10 ; // Use global groundWidth
+      const numInstances = Math.ceil(GAME_WIDTH / (ground.width * groundWidth)) + 10; // Use global groundWidth
       for (let i = 1; i < numInstances; i++) {
         ground.positions.push(i * ground.width * groundWidth); // Use global groundWidth
       }
-
-      console.log('Ground background initialized with positions:', ground.positions);
     }
   }, []);
 
@@ -224,7 +222,7 @@ function App() {
 
     if (isGameOver) {
       resetGame(canvasRef.current);
-      resetGroundBackground(); // Reset ground only when flap is pressed after game over
+      // No need to call resetGroundBackground here, it's already called in resetGame
     } else if (!isGameStarted) {
       setIsGameStarted(true);
       birdVelocityRef.current = flapStrength;
@@ -241,7 +239,7 @@ function App() {
       playerSpritesRef.current.currentFrame = 0; // Start with the first frame in sequence
       playerSpritesRef.current.frameTimer = 0;   // Reset frame timer
     }
-  }, [flapStrength, isGameOver, isGameStarted, resetGame, resetGroundBackground, showStartMessage]);
+  }, [flapStrength, isGameOver, isGameStarted, resetGame, showStartMessage]);
 
   // Handle keydown events
   const handleKeyDown = useCallback((event) => {
@@ -532,6 +530,9 @@ function App() {
 
   // Preload images
   useEffect(() => {
+    // Flag to track if this is the first run of the effect
+    const isFirstLoad = !groundBackgroundRef.current.loaded;
+    
     const loadImage = (src) => {
       return new Promise((resolve, reject) => {
         const img = new Image();
@@ -566,20 +567,20 @@ function App() {
       obstacleSpritesRef.current.lower = images[13];
       obstacleSpritesRef.current.loaded = true;
 
-      // Set up ground background
-      const groundImg = images[14];
-      groundBackgroundRef.current.image = groundImg;
-      groundBackgroundRef.current.width = groundImg.width;
-      groundBackgroundRef.current.height = groundImg.height;
-      groundBackgroundRef.current.loaded = true;
+      // Only set up ground background if this is the first load
+      if (isFirstLoad) {
+        const groundImg = images[14];
+        groundBackgroundRef.current.image = groundImg;
+        groundBackgroundRef.current.width = groundImg.width;
+        groundBackgroundRef.current.height = groundImg.height;
+        groundBackgroundRef.current.loaded = true;
 
-      console.log('All sprites including ground background loaded successfully');
+        // Initialize ground background only on first load
+        initializeGroundBackground();
+      }
 
       // Set assets as loaded
       setAssetsLoaded(true);
-
-      // Initialize ground background
-      initializeGroundBackground();
 
       // Trigger fade-out effect
       setTimeout(() => setFadeOut(true), 500);
@@ -592,7 +593,9 @@ function App() {
     }).catch(error => {
       console.error('Error loading sprite images:', error);
     });
-  }, [drawCurrentGameState, initializeGroundBackground]);
+    
+    // Add an empty array dependency to ensure this effect only runs once at mount
+  }, []);
 
   // Initialize collision detection system
   useEffect(() => {
@@ -610,9 +613,6 @@ function App() {
       context: collisionContext,
       initialized: true
     };
-    
-    // Debug logging
-    console.log('Collision detection system initialized');
     
     return () => {
       const currentCollisionData = collisionDataRef.current;
@@ -650,7 +650,8 @@ function App() {
 
   // Update ground background positions for infinite scrolling
   const updateGroundBackground = useCallback((deltaTime) => {
-    if (!isGameStarted || isGameOver) return; // Only update if the game is active
+    // Only update if the game is active (neither game over nor not started)
+    if (!isGameStarted || isGameOver) return;
 
     const ground = groundBackgroundRef.current;
 
@@ -714,10 +715,8 @@ function App() {
       // Draw the ground background layer before obstacles
       drawGroundBackground(context);
 
-      // Update ground background position if game is active
-      if (isGameStarted && !isGameOver) {
-        updateGroundBackground(clampedDeltaTime);
-      }
+      // Update ground background position
+      updateGroundBackground(clampedDeltaTime);
 
       // Draw obstacles after the ground background
       drawObstacles(context, obstaclesRef.current);
