@@ -150,6 +150,26 @@ function App() {
     }
   }, [generateObstacle, obstacleSpacing, obstacleWidth]);
 
+  // Global variable for ground width scaling
+  const groundWidth = 0.4; // Scale factor for ground width
+
+  // Initialize ground background layer - MOVED UP before it's referenced
+  const initializeGroundBackground = useCallback(() => {
+    const ground = groundBackgroundRef.current;
+
+    if (ground.loaded && ground.width > 0) {
+      ground.positions = [0]; // Start with one instance at x=0
+
+      // Add additional instances to cover the screen width plus buffer
+      const numInstances = Math.ceil(GAME_WIDTH / (ground.width * groundWidth)) +10 ; // Use global groundWidth
+      for (let i = 1; i < numInstances; i++) {
+        ground.positions.push(i * ground.width * groundWidth); // Use global groundWidth
+      }
+
+      console.log('Ground background initialized with positions:', ground.positions);
+    }
+  }, []);
+
   // Add a function to reset the ground layer
   const resetGroundBackground = useCallback(() => {
     const ground = groundBackgroundRef.current;
@@ -161,8 +181,6 @@ function App() {
       }
     }
   }, []);
-
-  
 
   // Update resetGame to delay ground reset until flap
   const resetGame = useCallback((canvas) => {
@@ -196,7 +214,7 @@ function App() {
     spawnInitialObstacles();
 
     initializeGroundBackground(); // Initialize ground background during game reset
-  }, [applyTransform, spawnInitialObstacles]);
+  }, [applyTransform, spawnInitialObstacles, initializeGroundBackground]);
 
   // Handle user input - start flap animation
   const handleInput = useCallback(() => {
@@ -560,6 +578,9 @@ function App() {
       // Set assets as loaded
       setAssetsLoaded(true);
 
+      // Initialize ground background
+      initializeGroundBackground();
+
       // Trigger fade-out effect
       setTimeout(() => setFadeOut(true), 500);
 
@@ -571,7 +592,7 @@ function App() {
     }).catch(error => {
       console.error('Error loading sprite images:', error);
     });
-  }, [drawCurrentGameState]);
+  }, [drawCurrentGameState, initializeGroundBackground]);
 
   // Initialize collision detection system
   useEffect(() => {
@@ -626,26 +647,6 @@ function App() {
   useEffect(() => {
     spawnInitialObstacles();
   }, [spawnInitialObstacles]);
-
-  // Global variable for ground width scaling
-  const groundWidth = 0.4; // Scale factor for ground width
-
-  // Initialize ground background layer
-  const initializeGroundBackground = useCallback(() => {
-    const ground = groundBackgroundRef.current;
-
-    if (ground.loaded && ground.width > 0) {
-      ground.positions = [0]; // Start with one instance at x=0
-
-      // Add additional instances to cover the screen width plus buffer
-      const numInstances = Math.ceil(GAME_WIDTH / (ground.width * groundWidth)) +1 ; // Use global groundWidth
-      for (let i = 1; i < numInstances; i++) {
-        ground.positions.push(i * ground.width * groundWidth); // Use global groundWidth
-      }
-
-      console.log('Ground background initialized with positions:', ground.positions);
-    }
-  }, []);
 
   // Update ground background positions for infinite scrolling
   const updateGroundBackground = useCallback((deltaTime) => {
