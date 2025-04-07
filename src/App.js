@@ -1141,8 +1141,8 @@ function App() {
       <div
         style={{
           position: 'absolute',
-          top: '10px', // Adjusted to be 10px from the top of the viewport
-          right: '10px',
+          top: '0px', // Adjusted to be 10px from the top of the viewport
+          right: '0px',
           color: 'white',
           fontSize: '24px',
           fontFamily: 'PixeloidSans',
@@ -1164,7 +1164,7 @@ function App() {
             left: '50%',
             transform: 'translate(-50%, -50%)',
             color: 'white',
-            fontSize: '32px',
+            fontSize: '24px',
             fontFamily: 'PixeloidSans', // Updated font family
             textAlign: 'center',
             zIndex: 1,
@@ -1173,7 +1173,7 @@ function App() {
             borderRadius: '5px', // Optional: rounded corners for better aesthetics
           }}
         >
-          Press Space to Flap
+          Tap to start flapping
         </div>
       )}
       
@@ -1186,7 +1186,7 @@ function App() {
             left: '50%',
             transform: 'translate(-50%, -50%)',
             color: 'white',
-            fontSize: '32px',
+            fontSize: '24px',
             fontFamily: 'PixeloidSans', // Updated font family
             textAlign: 'center',
             zIndex: 1,
@@ -1195,7 +1195,7 @@ function App() {
             borderRadius: '5px', // Optional: rounded corners for better aesthetics
           }}
         >
-          Game Over! Press Space to Restart.
+          Game Over! <br /> Tap to Restart.
         </div>
       )}
 
