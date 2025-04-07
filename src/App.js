@@ -60,8 +60,8 @@ function App() {
   // MidGround background constants
   const midGroundSpeed = obstacleSpeed * .7; // MidGround moves at 80% of obstacle speed
   // Cloud background constants
-  const cloudSpeed = obstacleSpeed * .5; // Clouds move at 60% of obstacle speed
-  const cloudSpacing = 800; // Each cloud is 800px apart
+  const cloudSpeed = obstacleSpeed * .4; // Clouds move at 60% of obstacle speed
+  const cloudSpacing = 500; // Each cloud is 800px apart
 
   // Add sprite references
   const playerSpritesRef = useRef({
@@ -223,7 +223,7 @@ function App() {
       
       // Calculate how many clouds we need to cover the screen width
       // Start at 400px and space each cloud 800px apart
-      const startX = 400;
+      const startX = 200;
       const cloudCount = Math.ceil((window.innerWidth / scaleRef.current) / cloudSpacing) + 2; // Add some buffer
       
       for (let i = 0; i < cloudCount; i++) {
@@ -292,7 +292,8 @@ function App() {
     // Initialize background layers during game reset
     initializeGroundBackground();
     initializeMidGroundBackground();
-  }, [applyTransform, spawnInitialObstacles, initializeGroundBackground, initializeMidGroundBackground]);
+    initializeCloudBackground(); // Add this to reset clouds
+  }, [applyTransform, spawnInitialObstacles, initializeGroundBackground, initializeMidGroundBackground, initializeCloudBackground]);
 
   // Handle user input - start flap animation
   const handleInput = useCallback(() => {
