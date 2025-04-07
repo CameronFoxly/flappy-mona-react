@@ -21,6 +21,16 @@ import GroundBackground from './assets/sprites/background1_ground.png';
 import MidGroundBackground from './assets/sprites/MidGround.png';
 import CloudSprite from './assets/sprites/cloud.png';
 
+// Import audio files
+import SongAudio from './assets/audio/SONG.mp3';
+import FlapAudio from './assets/audio/FLAP.wav';
+import SuccessAudio from './assets/audio/SUCCESS.wav';
+import DeathAudio from './assets/audio/DEATH.wav';
+
+// Import sound toggle UI
+import SoundOnSprite from './assets/sprites/soundUI1.png';
+import SoundOffSprite from './assets/sprites/soundUI2.png';
+
 function App() {
   const canvasRef = useRef(null);
   const birdVelocityRef = useRef(0);
@@ -38,6 +48,25 @@ function App() {
   // Add loading state
   const [assetsLoaded, setAssetsLoaded] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
+  
+  // Audio state
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [soundUILoaded, setSoundUILoaded] = useState(false);
+  const soundUIRef = useRef({
+    onSprite: null,
+    offSprite: null,
+    loaded: false
+  });
+  
+  // Audio references
+  const audioRef = useRef({
+    backgroundMusic: null,
+    flapSound: null,
+    successSound: null,
+    deathSound: null,
+    loaded: false,
+    isPlaying: false
+  });
 
   // Time tracking references
   const lastTimestampRef = useRef(0);
@@ -138,6 +167,61 @@ function App() {
     // Flag to indicate if collision data is initialized
     initialized: false
   });
+
+  // Audio functions - MOVED UP to avoid reference errors
+  const toggleSound = useCallback(() => {
+    setSoundEnabled(prevEnabled => {
+      const newState = !prevEnabled;
+      
+      // If turning sound off, pause the background music
+      if (!newState && audioRef.current.backgroundMusic && audioRef.current.isPlaying) {
+        audioRef.current.backgroundMusic.pause();
+        audioRef.current.isPlaying = false;
+      } 
+      // If turning sound on and the game is running, restart the background music
+      else if (newState && isGameStarted && !isGameOver && audioRef.current.backgroundMusic) {
+        audioRef.current.backgroundMusic.currentTime = 0;
+        audioRef.current.backgroundMusic.play().catch(e => console.error("Error playing background music:", e));
+        audioRef.current.isPlaying = true;
+      }
+      
+      return newState;
+    });
+  }, [isGameStarted, isGameOver]);
+  
+  // Play flap sound
+  const playFlapSound = useCallback(() => {
+    if (soundEnabled && audioRef.current.loaded && audioRef.current.flapSound) {
+      // Clone the audio to allow overlapping sounds
+      const flapSoundClone = audioRef.current.flapSound.cloneNode();
+      flapSoundClone.volume = 0.6;
+      flapSoundClone.play().catch(e => console.error("Error playing flap sound:", e));
+    }
+  }, [soundEnabled]);
+  
+  // Play success sound when passing obstacles
+  const playSuccessSound = useCallback(() => {
+    if (soundEnabled && audioRef.current.loaded && audioRef.current.successSound) {
+      // Clone the audio to allow overlapping sounds
+      const successSoundClone = audioRef.current.successSound.cloneNode();
+      successSoundClone.volume = 0.7;
+      successSoundClone.play().catch(e => console.error("Error playing success sound:", e));
+    }
+  }, [soundEnabled]);
+  
+  // Play death sound
+  const playDeathSound = useCallback(() => {
+    if (soundEnabled && audioRef.current.loaded && audioRef.current.deathSound) {
+      audioRef.current.deathSound.currentTime = 0;
+      audioRef.current.deathSound.play().catch(e => console.error("Error playing death sound:", e));
+    }
+    
+    // Stop background music when player dies
+    if (audioRef.current.backgroundMusic && audioRef.current.isPlaying) {
+      audioRef.current.backgroundMusic.pause();
+      audioRef.current.isPlaying = false;
+    }
+  }, [soundEnabled]);
 
   // Utility function to apply current transform to canvas
   const applyTransform = useCallback((canvas) => {
@@ -264,7 +348,7 @@ function App() {
     }
   }, []);
 
-  // Update resetGame to delay ground reset until flap
+  // Update resetGame to also reset audio
   const resetGame = useCallback((canvas) => {
     birdVelocityRef.current = 0;
     setIsGameOver(false);
@@ -280,6 +364,12 @@ function App() {
     playerSpritesRef.current.isFlapping = false;
     playerSpritesRef.current.currentFrame = 0;
 
+    // Stop background music if it's playing
+    if (audioRef.current.backgroundMusic) {
+      audioRef.current.backgroundMusic.pause();
+      audioRef.current.isPlaying = false;
+    }
+
     // Reset bird position
     birdYRef.current = GAME_HEIGHT / 4; // Reset to starting position
 
@@ -292,6 +382,7 @@ function App() {
     applyTransform(canvas);
 
     // Spawn initial obstacles
+
     spawnInitialObstacles();
 
     // Initialize background layers during game reset
@@ -317,6 +408,13 @@ function App() {
       playerSpritesRef.current.isFlapping = true;
       playerSpritesRef.current.currentFrame = 0; // Start with the first frame in sequence
       playerSpritesRef.current.frameTimer = 0;   // Reset frame timer
+      
+      // Start background music when game starts (first flap)
+      if (soundEnabled && audioRef.current.loaded && audioRef.current.backgroundMusic) {
+        audioRef.current.backgroundMusic.currentTime = 0;
+        audioRef.current.backgroundMusic.play().catch(e => console.error("Error playing background music:", e));
+        audioRef.current.isPlaying = true;
+      }
     } else {
       birdVelocityRef.current = flapStrength;
 
@@ -324,8 +422,11 @@ function App() {
       playerSpritesRef.current.isFlapping = true;
       playerSpritesRef.current.currentFrame = 0; // Start with the first frame in sequence
       playerSpritesRef.current.frameTimer = 0;   // Reset frame timer
+      
+      // Play flap sound during gameplay
+      playFlapSound();
     }
-  }, [flapStrength, isGameOver, isGameStarted, resetGame, showStartMessage]);
+  }, [flapStrength, isGameOver, isGameStarted, resetGame, showStartMessage, soundEnabled, playFlapSound]);
 
   // Handle keydown events
   const handleKeyDown = useCallback((event) => {
@@ -699,6 +800,99 @@ function App() {
     // Add an empty array dependency to ensure this effect only runs once at mount
   }, []);
 
+  // Preload audio files
+  useEffect(() => {
+    // Create and load sound sprites
+    const loadSoundUISprites = () => {
+      const loadImage = (src) => {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = src;
+        });
+      };
+      
+      return Promise.all([
+        loadImage(SoundOnSprite),
+        loadImage(SoundOffSprite)
+      ]).then(images => {
+        soundUIRef.current.onSprite = images[0];
+        soundUIRef.current.offSprite = images[1];
+        soundUIRef.current.loaded = true;
+        setSoundUILoaded(true);
+      });
+    };
+
+    // Load audio files
+    const loadAudio = () => {
+      // Create audio elements
+      const bgMusic = new Audio(SongAudio);
+      bgMusic.loop = true;
+      bgMusic.volume = 0.5; // Set volume to 50%
+      
+      const flapSound = new Audio(FlapAudio);
+      flapSound.volume = 0.6;
+      
+      const successSound = new Audio(SuccessAudio);
+      successSound.volume = 0.7;
+      
+      const deathSound = new Audio(DeathAudio);
+      deathSound.volume = 0.7;
+      
+      // Store audio references
+      audioRef.current = {
+        backgroundMusic: bgMusic,
+        flapSound: flapSound,
+        successSound: successSound,
+        deathSound: deathSound,
+        loaded: true,
+        isPlaying: false
+      };
+      
+      // Pre-load audio files to avoid delay on first play
+      Promise.all([
+        new Promise(resolve => {
+          bgMusic.preload = 'auto';
+          bgMusic.load();
+          bgMusic.addEventListener('canplaythrough', resolve, { once: true });
+        }),
+        new Promise(resolve => {
+          flapSound.preload = 'auto';
+          flapSound.load();
+          flapSound.addEventListener('canplaythrough', resolve, { once: true });
+        }),
+        new Promise(resolve => {
+          successSound.preload = 'auto';
+          successSound.load();
+          successSound.addEventListener('canplaythrough', resolve, { once: true });
+        }),
+        new Promise(resolve => {
+          deathSound.preload = 'auto';
+          deathSound.load();
+          deathSound.addEventListener('canplaythrough', resolve, { once: true });
+        })
+      ]).catch(error => {
+        console.error('Error loading audio:', error);
+      });
+    };
+
+    // Load sound UI sprites and audio files
+    loadSoundUISprites();
+    loadAudio();
+    
+    // Clean up audio on unmount
+    return () => {
+      if (audioRef.current.loaded) {
+        // Stop and clean up audio elements
+        if (audioRef.current.backgroundMusic) {
+          audioRef.current.backgroundMusic.pause();
+          audioRef.current.backgroundMusic.src = '';
+        }
+      }
+    };
+  }, []);
+
   // Initialize collision detection system
   useEffect(() => {
     // Create offscreen canvas for collision detection
@@ -1068,6 +1262,9 @@ function App() {
           playerSpritesRef.current.deathFrame = 0;
           playerSpritesRef.current.frameTimer = 0;
           
+          // Play death sound when collision is detected
+          playDeathSound();
+          
           setIsGameOver(true);
         }
       }
@@ -1086,6 +1283,9 @@ function App() {
             if (!obstacle.passed && obstacle.x + obstacleWidth < 100) {
               obstacle.passed = true;
               setScore(prevScore => prevScore + 1);
+              
+              // Play success sound when scoring a point
+              playSuccessSound();
             }
           }
         };
@@ -1235,6 +1435,30 @@ function App() {
           zIndex: 2, // Ensure it appears above other elements
         }}
       ></div>
+      
+      {/* Sound toggle button */}
+      {soundUILoaded && (
+        <div
+          onClick={toggleSound}
+          style={{
+            position: 'absolute',
+            top: '10px',
+            left: '10px',
+            width: '40px',
+            height: '40px',
+            cursor: 'pointer',
+            zIndex: 3, // Ensure it appears above the black bar
+          }}
+        >
+          {soundUIRef.current.loaded && (
+            <img 
+              src={soundEnabled ? SoundOnSprite : SoundOffSprite} 
+              alt={soundEnabled ? "Sound On" : "Sound Off"}
+              style={{ width: '100%', height: '100%' }}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }
