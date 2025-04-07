@@ -10,6 +10,7 @@ Flappy Mona is a browser-based game inspired by the classic "Flappy Bird" starri
 2. Avoid colliding with the obstacles and the ground.
 3. Try to achieve the highest score by passing through as many obstacles as possible.
 4. If the game ends, hit flap to restart.
+5. Toggle sound on/off using the sound button in the top-left corner.
 
 ## Available Scripts
 

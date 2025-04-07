@@ -31,6 +31,268 @@ import DeathAudio from './assets/audio/DEATH.wav';
 import SoundOnSprite from './assets/sprites/soundUI1.png';
 import SoundOffSprite from './assets/sprites/soundUI2.png';
 
+// Audio Manager - Optimized for mobile performance
+class AudioManager {
+  constructor() {
+    this.context = null;
+    this.buffers = {
+      backgroundMusic: null,
+      flap: null,
+      success: null,
+      death: null
+    };
+    this.sources = {
+      backgroundMusic: null
+    };
+    this.audioEnabled = true;
+    this.initialized = false;
+    this.muted = false;
+    
+    // Sound effect pools for better performance
+    this.flapPool = [];
+    this.successPool = [];
+    this.deathPool = [];
+    
+    // Pool size - smaller pools for mobile
+    this.poolSize = 3;
+    
+    // Track if user interaction has occurred
+    this.userInteracted = false;
+  }
+  
+  async initialize() {
+    try {
+      // Create audio context with lower latency options for better mobile performance
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      
+      // Lower latency options
+      const contextOptions = {
+        latencyHint: 'interactive',
+        sampleRate: 22050 // Lower sample rate for better mobile performance
+      };
+      
+      this.context = new AudioContext(contextOptions);
+      
+      // Check if context is in suspended state (happens on mobile)
+      if (this.context.state === 'suspended') {
+        this.audioEnabled = false;
+      }
+      
+      // Load buffers in the background but don't block initialization
+      this.loadBuffers();
+      
+      this.initialized = true;
+      return true;
+    } catch (error) {
+      console.error('Error initializing AudioManager:', error);
+      this.audioEnabled = false;
+      return false;
+    }
+  }
+  
+  async loadBuffers() {
+    try {
+      // Define a helper function to load audio buffer from a URL
+      const loadAudioBuffer = async (url) => {
+        try {
+          const response = await fetch(url);
+          const arrayBuffer = await response.arrayBuffer();
+          return await this.context.decodeAudioData(arrayBuffer);
+        } catch (error) {
+          console.error(`Error loading audio file ${url}:`, error);
+          return null;
+        }
+      };
+      
+      // Load all audio buffers
+      const [backgroundMusicBuffer, flapBuffer, successBuffer, deathBuffer] = await Promise.all([
+        loadAudioBuffer(SongAudio),
+        loadAudioBuffer(FlapAudio),
+        loadAudioBuffer(SuccessAudio),
+        loadAudioBuffer(DeathAudio)
+      ]);
+      
+      this.buffers.backgroundMusic = backgroundMusicBuffer;
+      this.buffers.flap = flapBuffer;
+      this.buffers.success = successBuffer;
+      this.buffers.death = deathBuffer;
+      
+      // Initialize sound pools
+      this.initializePool('flap');
+      this.initializePool('success');
+      this.initializePool('death');
+      
+      return true;
+    } catch (error) {
+      console.error('Error loading audio buffers:', error);
+      return false;
+    }
+  }
+  
+  initializePool(type) {
+    const pool = type === 'flap' ? this.flapPool : 
+                 type === 'success' ? this.successPool : this.deathPool;
+    const buffer = this.buffers[type];
+    
+    if (!buffer) return;
+    
+    // Clear existing pool
+    pool.length = 0;
+    
+    // Create pooled audio nodes
+    for (let i = 0; i < this.poolSize; i++) {
+      pool.push({
+        gainNode: null,
+        lastUsed: 0,
+        playing: false
+      });
+    }
+  }
+  
+  getPooledSound(pool) {
+    // First try to get a non-playing sound
+    let sound = pool.find(s => !s.playing);
+    
+    // If all are playing, get the oldest one
+    if (!sound) {
+      sound = pool.reduce((oldest, current) => {
+        return current.lastUsed < oldest.lastUsed ? current : oldest;
+      }, pool[0]);
+    }
+    
+    // Create or reuse gain node
+    if (!sound.gainNode) {
+      sound.gainNode = this.context.createGain();
+      sound.gainNode.connect(this.context.destination);
+    }
+    
+    sound.lastUsed = Date.now();
+    sound.playing = true;
+    
+    return sound;
+  }
+  
+  playSound(type, options = {}) {
+    if (!this.audioEnabled || this.muted || !this.initialized || 
+        this.context.state === 'suspended' || !this.buffers[type]) {
+      return;
+    }
+    
+    try {
+      // Resume context if suspended (needed for mobile)
+      if (this.context.state === 'suspended') {
+        this.context.resume();
+      }
+      
+      // Special case for background music which needs looping
+      if (type === 'backgroundMusic') {
+        return this.playBackgroundMusic();
+      }
+      
+      // For sound effects, use pooling
+      const pool = type === 'flap' ? this.flapPool : 
+                   type === 'success' ? this.successPool : this.deathPool;
+      
+      const pooledSound = this.getPooledSound(pool);
+      const gainNode = pooledSound.gainNode;
+      
+      // Set volume
+      gainNode.gain.value = options.volume || 
+                           (type === 'flap' ? 0.5 : 
+                            type === 'success' ? 0.6 : 0.7);
+      
+      // Create and configure source
+      const source = this.context.createBufferSource();
+      source.buffer = this.buffers[type];
+      source.connect(gainNode);
+      
+      // Play the sound
+      source.start(0);
+      
+      // Mark as not playing when finished
+      source.onended = () => {
+        pooledSound.playing = false;
+      };
+      
+      return true;
+    } catch (error) {
+      console.error(`Error playing sound ${type}:`, error);
+      return false;
+    }
+  }
+  
+  playBackgroundMusic() {
+    if (this.sources.backgroundMusic) {
+      // Stop existing music
+      try {
+        this.sources.backgroundMusic.stop();
+      } catch (e) {
+        // Ignore errors when stopping
+      }
+    }
+    
+    try {
+      // Create a gain node for volume control
+      const gainNode = this.context.createGain();
+      gainNode.gain.value = 0.4; // Lower volume for background music
+      gainNode.connect(this.context.destination);
+      
+      // Create and configure source
+      const source = this.context.createBufferSource();
+      source.buffer = this.buffers.backgroundMusic;
+      source.connect(gainNode);
+      source.loop = true;
+      
+      // Store reference to the source
+      this.sources.backgroundMusic = source;
+      
+      // Play the music
+      source.start(0);
+      return true;
+    } catch (error) {
+      console.error('Error playing background music:', error);
+      return false;
+    }
+  }
+  
+  stopBackgroundMusic() {
+    if (this.sources.backgroundMusic) {
+      try {
+        this.sources.backgroundMusic.stop();
+        this.sources.backgroundMusic = null;
+      } catch (error) {
+        console.error('Error stopping background music:', error);
+      }
+    }
+  }
+  
+  toggleMute() {
+    this.muted = !this.muted;
+    
+    if (this.muted) {
+      this.stopBackgroundMusic();
+    } else if (this.userInteracted) {
+      // Only restart music if user has interacted
+      this.playBackgroundMusic();
+    }
+    
+    return this.muted;
+  }
+  
+  setUserInteracted() {
+    this.userInteracted = true;
+    
+    // Resume audio context on user interaction (required for mobile)
+    if (this.context && this.context.state === 'suspended') {
+      this.context.resume().then(() => {
+        this.audioEnabled = true;
+      }).catch(error => {
+        console.error('Error resuming audio context:', error);
+      });
+    }
+  }
+}
+
 function App() {
   const canvasRef = useRef(null);
   const birdVelocityRef = useRef(0);
@@ -49,7 +311,7 @@ function App() {
   const [assetsLoaded, setAssetsLoaded] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
   
-  // Audio state
+  // Audio state with new AudioManager
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [soundUILoaded, setSoundUILoaded] = useState(false);
   const soundUIRef = useRef({
@@ -58,15 +320,8 @@ function App() {
     loaded: false
   });
   
-  // Audio references
-  const audioRef = useRef({
-    backgroundMusic: null,
-    flapSound: null,
-    successSound: null,
-    deathSound: null,
-    loaded: false,
-    isPlaying: false
-  });
+  // Reference to our optimized AudioManager
+  const audioManagerRef = useRef(null);
 
   // Time tracking references
   const lastTimestampRef = useRef(0);
@@ -174,15 +429,12 @@ function App() {
       const newState = !prevEnabled;
       
       // If turning sound off, pause the background music
-      if (!newState && audioRef.current.backgroundMusic && audioRef.current.isPlaying) {
-        audioRef.current.backgroundMusic.pause();
-        audioRef.current.isPlaying = false;
+      if (!newState) {
+        audioManagerRef.current.toggleMute();
       } 
       // If turning sound on and the game is running, restart the background music
-      else if (newState && isGameStarted && !isGameOver && audioRef.current.backgroundMusic) {
-        audioRef.current.backgroundMusic.currentTime = 0;
-        audioRef.current.backgroundMusic.play().catch(e => console.error("Error playing background music:", e));
-        audioRef.current.isPlaying = true;
+      else if (newState && isGameStarted && !isGameOver) {
+        audioManagerRef.current.toggleMute();
       }
       
       return newState;
@@ -191,36 +443,26 @@ function App() {
   
   // Play flap sound
   const playFlapSound = useCallback(() => {
-    if (soundEnabled && audioRef.current.loaded && audioRef.current.flapSound) {
-      // Clone the audio to allow overlapping sounds
-      const flapSoundClone = audioRef.current.flapSound.cloneNode();
-      flapSoundClone.volume = 0.6;
-      flapSoundClone.play().catch(e => console.error("Error playing flap sound:", e));
+    if (soundEnabled) {
+      audioManagerRef.current.playSound('flap');
     }
   }, [soundEnabled]);
   
   // Play success sound when passing obstacles
   const playSuccessSound = useCallback(() => {
-    if (soundEnabled && audioRef.current.loaded && audioRef.current.successSound) {
-      // Clone the audio to allow overlapping sounds
-      const successSoundClone = audioRef.current.successSound.cloneNode();
-      successSoundClone.volume = 0.7;
-      successSoundClone.play().catch(e => console.error("Error playing success sound:", e));
+    if (soundEnabled) {
+      audioManagerRef.current.playSound('success');
     }
   }, [soundEnabled]);
   
   // Play death sound
   const playDeathSound = useCallback(() => {
-    if (soundEnabled && audioRef.current.loaded && audioRef.current.deathSound) {
-      audioRef.current.deathSound.currentTime = 0;
-      audioRef.current.deathSound.play().catch(e => console.error("Error playing death sound:", e));
+    if (soundEnabled) {
+      audioManagerRef.current.playSound('death');
     }
     
     // Stop background music when player dies
-    if (audioRef.current.backgroundMusic && audioRef.current.isPlaying) {
-      audioRef.current.backgroundMusic.pause();
-      audioRef.current.isPlaying = false;
-    }
+    audioManagerRef.current.stopBackgroundMusic();
   }, [soundEnabled]);
 
   // Utility function to apply current transform to canvas
@@ -365,10 +607,7 @@ function App() {
     playerSpritesRef.current.currentFrame = 0;
 
     // Stop background music if it's playing
-    if (audioRef.current.backgroundMusic) {
-      audioRef.current.backgroundMusic.pause();
-      audioRef.current.isPlaying = false;
-    }
+    audioManagerRef.current.stopBackgroundMusic();
 
     // Reset bird position
     birdYRef.current = GAME_HEIGHT / 4; // Reset to starting position
@@ -393,6 +632,11 @@ function App() {
 
   // Handle user input - start flap animation
   const handleInput = useCallback(() => {
+    // Tell the audio manager that user interaction has occurred (needed for mobile)
+    if (audioManagerRef.current) {
+      audioManagerRef.current.setUserInteracted();
+    }
+
     if (showStartMessage) {
       setShowStartMessage(false);
     }
@@ -410,10 +654,8 @@ function App() {
       playerSpritesRef.current.frameTimer = 0;   // Reset frame timer
       
       // Start background music when game starts (first flap)
-      if (soundEnabled && audioRef.current.loaded && audioRef.current.backgroundMusic) {
-        audioRef.current.backgroundMusic.currentTime = 0;
-        audioRef.current.backgroundMusic.play().catch(e => console.error("Error playing background music:", e));
-        audioRef.current.isPlaying = true;
+      if (soundEnabled) {
+        audioManagerRef.current.playSound('backgroundMusic');
       }
     } else {
       birdVelocityRef.current = flapStrength;
@@ -838,56 +1080,10 @@ function App() {
     };
 
     // Load audio files
-    const loadAudio = () => {
-      // Create audio elements
-      const bgMusic = new Audio(SongAudio);
-      bgMusic.loop = true;
-      bgMusic.volume = 0.5; // Set volume to 50%
-      
-      const flapSound = new Audio(FlapAudio);
-      flapSound.volume = 0.6;
-      
-      const successSound = new Audio(SuccessAudio);
-      successSound.volume = 0.7;
-      
-      const deathSound = new Audio(DeathAudio);
-      deathSound.volume = 0.7;
-      
-      // Store audio references
-      audioRef.current = {
-        backgroundMusic: bgMusic,
-        flapSound: flapSound,
-        successSound: successSound,
-        deathSound: deathSound,
-        loaded: true,
-        isPlaying: false
-      };
-      
-      // Pre-load audio files to avoid delay on first play
-      Promise.all([
-        new Promise(resolve => {
-          bgMusic.preload = 'auto';
-          bgMusic.load();
-          bgMusic.addEventListener('canplaythrough', resolve, { once: true });
-        }),
-        new Promise(resolve => {
-          flapSound.preload = 'auto';
-          flapSound.load();
-          flapSound.addEventListener('canplaythrough', resolve, { once: true });
-        }),
-        new Promise(resolve => {
-          successSound.preload = 'auto';
-          successSound.load();
-          successSound.addEventListener('canplaythrough', resolve, { once: true });
-        }),
-        new Promise(resolve => {
-          deathSound.preload = 'auto';
-          deathSound.load();
-          deathSound.addEventListener('canplaythrough', resolve, { once: true });
-        })
-      ]).catch(error => {
-        console.error('Error loading audio:', error);
-      });
+    const loadAudio = async () => {
+      // Initialize AudioManager
+      audioManagerRef.current = new AudioManager();
+      await audioManagerRef.current.initialize();
     };
 
     // Load sound UI sprites and audio files
@@ -896,12 +1092,8 @@ function App() {
     
     // Clean up audio on unmount
     return () => {
-      if (audioRef.current.loaded) {
-        // Stop and clean up audio elements
-        if (audioRef.current.backgroundMusic) {
-          audioRef.current.backgroundMusic.pause();
-          audioRef.current.backgroundMusic.src = '';
-        }
+      if (audioManagerRef.current) {
+        audioManagerRef.current.stopBackgroundMusic();
       }
     };
   }, []);
