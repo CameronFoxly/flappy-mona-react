@@ -1165,10 +1165,9 @@ function App() {
           top: '0px',
           right: '0px',
           color: 'white',
-          fontSize: '24px',
+          fontSize: '18px',
           fontFamily: 'PixeloidSans',
           zIndex: 3, // Ensure it appears above the black bar
-          backgroundColor: 'black', // Black bar background
           padding: '10px', // Padding around text
           borderRadius: '5px', // Optional: rounded corners for better aesthetics
           display: 'flex',
@@ -1231,7 +1230,7 @@ function App() {
           top: 0,
           left: 0,
           width: '100%',
-          height: '50px', // Height of the black bar
+          height: '60px', // Height of the black bar
           backgroundColor: 'black',
           zIndex: 2, // Ensure it appears above other elements
         }}
