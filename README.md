@@ -1,20 +1,15 @@
 # Flappy Mona
 
-Flappy Mona is a fun and interactive browser-based game inspired by the classic "Flappy Bird." In this game, you control a bird (Mona) and navigate through a series of obstacles to achieve the highest score possible. The game is built using React and features dynamic gameplay with increasing difficulty.
+Flappy Mona is a browser-based game inspired by the classic "Flappy Bird." In this game, you control a bird (Mona) and navigate through a series of obstacles to achieve the highest score possible.
 
-## Features
-
-- **Responsive Gameplay**: The game adjusts to different screen sizes and resolutions.
-- **Dynamic Obstacles**: Randomly generated obstacles with varying gaps to keep the gameplay challenging.
-- **Score Tracking**: Your score increases as you successfully pass through obstacles.
-- **Game Over and Restart**: The game ends when you collide with an obstacle or the ground, and you can restart with a single key press.
+[Live demo here.](https://cameronfoxly.github.io/flappy-mona-react/)
 
 ## How to Play
 
-1. Press the `Space` key to make the bird flap and gain altitude.
+1. Press the `Space` key, or click/tap to make the bird flap and gain altitude.
 2. Avoid colliding with the obstacles and the ground.
 3. Try to achieve the highest score by passing through as many obstacles as possible.
-4. If the game ends, press `Space` to restart.
+4. If the game ends, hit flap to restart.
 
 ## Available Scripts
 
@@ -55,6 +50,3 @@ npm run deploy
 
 The app will be available at `https://<your-github-username>.github.io/<repository-name>`.
 
-## Learn More
-
-To learn more about React, check out the [React documentation](https://reactjs.org/).
