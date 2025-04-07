@@ -444,20 +444,27 @@ function App() {
     // Check collision with obstacles
     for (let i = 0; i < obstaclesRef.current.length; i++) {
       const obstacle = obstaclesRef.current[i];
-  
+      
+      // Check collision with top obstacle - make it significantly narrower (50% width) and slightly shorter
+      const topObstacleWidth = obstacleWidth * 0.5; // 50% of original width
+      const topObstacleHeight = obstacle.topHeight * 0.95; // 95% of original height
+      const topObstacleXOffset = (obstacleWidth - topObstacleWidth) / 2; // Center the reduced hitbox
+      
+      if (
+        birdX + birdRadius > obstacle.x + topObstacleXOffset &&
+        birdX - birdRadius < obstacle.x + topObstacleXOffset + topObstacleWidth &&
+        birdY - birdRadius < topObstacleHeight
+      ) {
+        return true;
+      }
+      
+      // Check collision with bottom obstacle - keep original width
       if (
         birdX + birdRadius > obstacle.x &&
-        birdX - birdRadius < obstacle.x + obstacleWidth
+        birdX - birdRadius < obstacle.x + obstacleWidth &&
+        birdY + birdRadius > obstacle.bottomY
       ) {
-        // Check collision with top obstacle
-        if (birdY - birdRadius < obstacle.topHeight) {
-          return true;
-        }
-        
-        // Check collision with bottom obstacle
-        if (birdY + birdRadius > obstacle.bottomY) {
-          return true;
-        }
+        return true;
       }
     }
   
@@ -521,12 +528,18 @@ function App() {
       
       // At this point we know there's horizontal overlap, now check vertical collision
       
-      // Check for collision with top obstacle - adjust for visual height of sprite
-      if (birdBounds.top < obstacle.topHeight) {
+      // Check for collision with top obstacle - use reduced width (75% of original)
+      const topObstacleWidth = obstacleWidth * 0.75;
+      const topObstacleXOffset = (obstacleWidth - topObstacleWidth) / 2;
+      
+      // Check if bird is within the reduced top obstacle hitbox
+      if (birdBounds.top < obstacle.topHeight && 
+          birdBounds.right > obstacle.x + topObstacleXOffset && 
+          birdBounds.left < obstacle.x + topObstacleXOffset + topObstacleWidth) {
         return true;
       }
       
-      // Check for collision with bottom obstacle
+      // Check for collision with bottom obstacle - keep original width
       if (birdBounds.bottom > obstacle.bottomY) {
         return true;
       }
@@ -1072,6 +1085,11 @@ function App() {
     }
   }, []);
 
+  // Function to draw hitboxes for debugging - Empty function now (removed hitbox visualization)
+  const drawHitboxes = useCallback(() => {
+    // Hitbox visualization code removed
+  }, []);
+
   // Main game loop
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1245,9 +1263,15 @@ function App() {
         
         // Draw obstacles after movement
         drawObstacles(context, obstaclesRef.current);
+        
+        // Draw hitboxes for debugging
+        drawHitboxes(context);
       } else {
         // Just draw obstacles in their current positions without moving them
         drawObstacles(context, obstaclesRef.current);
+        
+        // Draw hitboxes for debugging
+        drawHitboxes(context);
       }
 
       // Check collisions and end game if needed
