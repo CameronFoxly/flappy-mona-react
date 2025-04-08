@@ -1,6 +1,6 @@
 # Flappy Mona
 
-![Screenshot 2025-04-07 at 5 01 46 PM](https://github.com/user-attachments/assets/2b5cd9e6-9f93-44c3-a7c0-48483475d028)
+![431153462-2b5cd9e6-9f93-44c3-a7c0-48483475d028](https://github.com/user-attachments/assets/9f8b1a85-47c9-4d62-8ee7-55127278b78a)
 
 Flappy Mona is web port of GitHub's iOS easteregg game inspired by the classic "Flappy Bird" starring Mona the Octocat. In this game, you control a bird (Mona) and navigate through a series of obstacles to achieve the highest score possible.
 
