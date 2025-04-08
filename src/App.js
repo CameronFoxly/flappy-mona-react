@@ -346,6 +346,7 @@ function App() {
   const [assetsLoaded, setAssetsLoaded] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState({ images: 0, audio: 0 });
+  const [wipeComplete, setWipeComplete] = useState(false); // Add state for wipe completion
   
   // Audio state with new AudioManager
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -1048,8 +1049,10 @@ function App() {
       updateLoadingState: function() {
         if (this.images && this.audio) {
           setAssetsLoaded(true);
-          // Trigger fade-out effect
-          setTimeout(() => setFadeOut(true), 1000);
+          // Trigger vertical wipe effect
+          setTimeout(() => setFadeOut(true), 500);
+          // Hide the loading screen completely after animation completes
+          setTimeout(() => setWipeComplete(true), 1500);
         }
       }
     };
@@ -1675,8 +1678,8 @@ function App() {
 
   return (
     <div className="App">
-      {/* Loading screen */}
-      {!fadeOut && (
+      {/* Loading screen with vertical wipe animation */}
+      {!wipeComplete && (
         <div
           style={{
             position: 'fixed',
@@ -1686,9 +1689,9 @@ function App() {
             height: '100vh',
             backgroundColor: 'black',
             zIndex: 10,
-            opacity: assetsLoaded ? 0 : 1,
-            transition: 'opacity 1s ease-in-out',
-            pointerEvents: 'none',
+            clipPath: assetsLoaded && fadeOut ? 'inset(100% 0 0 0)' : 'inset(0 0 0 0)',
+            transition: 'clip-path 0.5s ease-in',
+            pointerEvents: assetsLoaded ? 'none' : 'auto',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
@@ -1697,8 +1700,16 @@ function App() {
             fontFamily: 'PixeloidSans'
           }}
         >
-          <h2 style={{ marginBottom: '20px' }}>Loading...</h2>
-          <div style={{ width: '80%', maxWidth: '300px' }}>
+          <div style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '80%',
+            maxWidth: '300px',
+            textAlign: 'center'
+          }}>
+            <h2 style={{ marginBottom: '20px' }}>Loading...</h2>
             <div style={{ 
               width: '100%', 
               height: '20px', 
