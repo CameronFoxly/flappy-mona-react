@@ -179,8 +179,13 @@ class AudioManager {
   }
   
   playSound(type, options = {}) {
-    if (!this.audioEnabled || this.muted || !this.initialized || !this.buffers[type]) {
-      return;
+    // Check muted state first to prevent any audio processing when muted
+    if (this.muted) {
+      return false;
+    }
+    
+    if (!this.audioEnabled || !this.initialized || !this.buffers[type]) {
+      return false;
     }
     
     try {
@@ -192,7 +197,7 @@ class AudioManager {
         }).catch(error => {
           console.error('Error resuming audio context:', error);
         });
-        return; // Exit and wait for the resume callback to play sound
+        return false; // Exit and wait for the resume callback to play sound
       }
       
       // Special case for background music which needs looping
@@ -233,7 +238,14 @@ class AudioManager {
   }
   
   playBackgroundMusic() {
-    if (!this.audioEnabled || this.muted || !this.initialized || !this.buffers.backgroundMusic) {
+    // Check muted state first
+    if (this.muted) {
+      console.log('AudioManager: Cannot play background music - audio is muted');
+      return false;
+    }
+    
+    if (!this.audioEnabled || !this.initialized || !this.buffers.backgroundMusic) {
+      console.log('AudioManager: Cannot play background music - not enabled/initialized');
       return false;
     }
     
@@ -297,11 +309,15 @@ class AudioManager {
   
   toggleMute() {
     this.muted = !this.muted;
+    console.log('AudioManager: Mute toggled -', this.muted ? 'Muted' : 'Unmuted');
     
     if (this.muted) {
+      // Stop background music when muted
       this.stopBackgroundMusic();
+      console.log('AudioManager: Background music stopped due to mute');
     } else if (this.userInteracted) {
-      // Only restart music if user has interacted
+      // Restart background music when unmuted (only if user has interacted)
+      console.log('AudioManager: Attempting to restart background music after unmute');
       this.playBackgroundMusic();
     }
     
@@ -461,17 +477,35 @@ function App() {
   });
 
   // Audio functions - MOVED UP to avoid reference errors
-  const toggleSound = useCallback(() => {
+  const toggleSound = useCallback((event) => {
+    // Prevent the event from triggering other handlers (like flapping)
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    
+    // Toggle sound state and make sure audio manager's mute state stays in sync
     setSoundEnabled(prevEnabled => {
       const newState = !prevEnabled;
       
-      // If turning sound off, pause the background music
-      if (!newState) {
-        audioManagerRef.current.toggleMute();
-      } 
-      // If turning sound on and the game is running, restart the background music
-      else if (newState && isGameStarted && !isGameOver) {
-        audioManagerRef.current.toggleMute();
+      if (audioManagerRef.current) {
+        // Make sure the AudioManager's mute state matches our React state
+        if (newState === false) {
+          // Setting to muted
+          audioManagerRef.current.muted = true;
+          audioManagerRef.current.stopBackgroundMusic();
+          console.log('Sound disabled by UI toggle');
+        } else {
+          // Setting to unmuted
+          audioManagerRef.current.muted = false;
+          // Only restart music if game is running
+          if (isGameStarted && !isGameOver) {
+            audioManagerRef.current.playBackgroundMusic();
+            console.log('Sound enabled and restarting music');
+          } else {
+            console.log('Sound enabled, music will start when game starts');
+          }
+        }
       }
       
       return newState;
@@ -480,26 +514,28 @@ function App() {
   
   // Play flap sound
   const playFlapSound = useCallback(() => {
-    if (soundEnabled) {
+    if (soundEnabled && audioManagerRef.current) {
       audioManagerRef.current.playSound('flap');
     }
   }, [soundEnabled]);
   
   // Play success sound when passing obstacles
   const playSuccessSound = useCallback(() => {
-    if (soundEnabled) {
+    if (soundEnabled && audioManagerRef.current) {
       audioManagerRef.current.playSound('success');
     }
   }, [soundEnabled]);
   
   // Play death sound
   const playDeathSound = useCallback(() => {
-    if (soundEnabled) {
+    if (soundEnabled && audioManagerRef.current) {
       audioManagerRef.current.playSound('death');
     }
     
     // Stop background music when player dies
-    audioManagerRef.current.stopBackgroundMusic();
+    if (audioManagerRef.current) {
+      audioManagerRef.current.stopBackgroundMusic();
+    }
   }, [soundEnabled]);
 
   // Utility function to apply current transform to canvas
@@ -1649,8 +1685,25 @@ function App() {
 
   // Input handlers
   useEffect(() => {
-    const handleMouseDown = () => handleInput();
+    // Helper function to check if the event target is the sound toggle button or its children
+    const isSoundToggleTarget = (target) => {
+      return target.closest('.sound-toggle-button') !== null;
+    };
+    
+    const handleMouseDown = (e) => {
+      // Don't trigger game input when clicking the sound toggle
+      if (isSoundToggleTarget(e.target)) {
+        return;
+      }
+      handleInput();
+    };
+    
     const handleTouchStart = (e) => {
+      // Don't trigger game input when touching the sound toggle
+      if (isSoundToggleTarget(e.target)) {
+        return;
+      }
+      
       e.preventDefault(); // Prevent default touch behavior
       handleInput();
     };
@@ -1811,10 +1864,21 @@ function App() {
         }}
       ></div>
       
-      {/* Sound toggle button */}
+      {/* Sound toggle button - improved for mobile */}
       {soundUILoaded && (
         <div
-          onClick={toggleSound}
+          className="sound-toggle-button"
+          // Use onClick for desktop and onTouchEnd for mobile to prevent double-triggering
+          onClick={(e) => {
+            // Only process click events that aren't from touch
+            if (e.pointerType !== 'touch') {
+              toggleSound(e);
+            }
+          }}
+          onTouchEnd={(e) => {
+            // Use touchend instead of touchstart to avoid double-triggering
+            toggleSound(e);
+          }}
           style={{
             position: 'absolute',
             top: '10px',
@@ -1822,14 +1886,29 @@ function App() {
             width: '40px',
             height: '40px',
             cursor: 'pointer',
-            zIndex: 3, // Ensure it appears above the black bar
+            zIndex: 10, // Even higher z-index to ensure it's on top of everything
+            padding: '5px', // Smaller padding for a tighter look
+            backgroundColor: 'rgba(0, 0, 0, 0.5)', // Semi-transparent background
+            borderRadius: '50%', // Circular shape
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            touchAction: 'none', // Prevent default touch actions
+            boxShadow: '0 0 5px rgba(0, 0, 0, 0.5)' // Smaller shadow for subtle effect
           }}
+          aria-label={soundEnabled ? "Mute sound" : "Unmute sound"}
         >
           {soundUIRef.current.loaded && (
             <img 
+              className="sound-toggle-icon"
               src={soundEnabled ? SoundOnSprite : SoundOffSprite} 
               alt={soundEnabled ? "Sound On" : "Sound Off"}
-              style={{ width: '100%', height: '100%' }}
+              style={{ 
+                width: '100%', 
+                height: '100%',
+                pointerEvents: 'none' // Prevent image from catching events
+              }}
+              draggable="false"
             />
           )}
         </div>
