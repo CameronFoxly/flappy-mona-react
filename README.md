@@ -2,7 +2,7 @@
 
 ![431153462-2b5cd9e6-9f93-44c3-a7c0-48483475d028](https://github.com/user-attachments/assets/6f7fac15-c359-47ba-8294-8843135353e6)
 
-React port of of GitHub's iOS easteregg game inspired by the classic "Flappy Bird" starring Mona the Octocat. In this game, you control a bird (Mona) and navigate through a series of obstacles to achieve the highest score possible.
+React port of of GitHub's iOS easter egg game inspired by the classic "Flappy Bird" starring Mona the Octocat. In this game, you control a bird (Mona) and navigate through a series of obstacles to achieve the highest score possible.
 
 [Live demo here.](https://cameronfoxly.github.io/flappy-mona-react/)
 
