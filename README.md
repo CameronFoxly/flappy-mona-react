@@ -23,16 +23,12 @@ This was vibe-coded with GitHub Copilot, so ignore any silly structure issues. ð
 
 1. Clone the repo.
 
-2. In the project directory, run:
+2. In the project directory, install dependencies by running:
 
 `npm install` 
 
-3. To install the dependencies
+ 3. Set up your develepment server by running:
 
 `npm start`
 
-To set up your develpment server
 
-
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
