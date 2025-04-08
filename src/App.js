@@ -62,6 +62,7 @@ class AudioManager {
   
   async initialize() {
     try {
+      console.log('AudioManager: Initializing...');
       // Create audio context with lower latency options for better mobile performance
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       
@@ -72,16 +73,21 @@ class AudioManager {
       };
       
       this.context = new AudioContext(contextOptions);
+      console.log('AudioManager: Audio context created, state:', this.context.state);
       
       // Check if context is in suspended state (happens on mobile)
       if (this.context.state === 'suspended') {
         this.audioEnabled = false;
+        console.log('AudioManager: Audio context is suspended, waiting for user interaction');
       }
       
-      // Load buffers in the background but don't block initialization
-      this.loadBuffers();
+      // Wait for buffers to load instead of doing it in the background
+      console.log('AudioManager: Starting to load audio buffers...');
+      await this.loadBuffers();
+      console.log('AudioManager: Audio buffers loaded successfully');
       
       this.initialized = true;
+      console.log('AudioManager: Initialization complete');
       return true;
     } catch (error) {
       console.error('Error initializing AudioManager:', error);
@@ -173,15 +179,20 @@ class AudioManager {
   }
   
   playSound(type, options = {}) {
-    if (!this.audioEnabled || this.muted || !this.initialized || 
-        this.context.state === 'suspended' || !this.buffers[type]) {
+    if (!this.audioEnabled || this.muted || !this.initialized || !this.buffers[type]) {
       return;
     }
     
     try {
       // Resume context if suspended (needed for mobile)
       if (this.context.state === 'suspended') {
-        this.context.resume();
+        this.context.resume().then(() => {
+          // Once resumed, try to play the sound again
+          this.playSound(type, options);
+        }).catch(error => {
+          console.error('Error resuming audio context:', error);
+        });
+        return; // Exit and wait for the resume callback to play sound
       }
       
       // Special case for background music which needs looping
@@ -222,16 +233,33 @@ class AudioManager {
   }
   
   playBackgroundMusic() {
-    if (this.sources.backgroundMusic) {
-      // Stop existing music
-      try {
-        this.sources.backgroundMusic.stop();
-      } catch (e) {
-        // Ignore errors when stopping
-      }
+    if (!this.audioEnabled || this.muted || !this.initialized || !this.buffers.backgroundMusic) {
+      return false;
     }
     
     try {
+      // Resume context if suspended (needed for mobile)
+      if (this.context.state === 'suspended') {
+        this.context.resume().then(() => {
+          // Once resumed, try to play the background music again
+          this.playBackgroundMusic();
+        }).catch(error => {
+          console.error('Error resuming audio context for background music:', error);
+        });
+        return false; // Exit and wait for the resume callback to play music
+      }
+      
+      // Stop existing music if playing
+      if (this.sources.backgroundMusic) {
+        try {
+          this.sources.backgroundMusic.stop();
+          this.sources.backgroundMusic.disconnect();
+          this.sources.backgroundMusic = null;
+        } catch (e) {
+          // Ignore errors when stopping
+        }
+      }
+      
       // Create a gain node for volume control
       const gainNode = this.context.createGain();
       gainNode.gain.value = 0.4; // Lower volume for background music
@@ -248,6 +276,7 @@ class AudioManager {
       
       // Play the music
       source.start(0);
+      console.log('Background music started successfully');
       return true;
     } catch (error) {
       console.error('Error playing background music:', error);
@@ -283,13 +312,19 @@ class AudioManager {
     this.userInteracted = true;
     
     // Resume audio context on user interaction (required for mobile)
+    // Return a promise that resolves when the context is resumed
     if (this.context && this.context.state === 'suspended') {
-      this.context.resume().then(() => {
+      return this.context.resume().then(() => {
         this.audioEnabled = true;
+        return true;
       }).catch(error => {
         console.error('Error resuming audio context:', error);
+        return false;
       });
     }
+    
+    // If context is already running, return a resolved promise
+    return Promise.resolve(this.audioEnabled);
   }
 }
 
@@ -310,6 +345,7 @@ function App() {
   // Add loading state
   const [assetsLoaded, setAssetsLoaded] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState({ images: 0, audio: 0 });
   
   // Audio state with new AudioManager
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -634,39 +670,63 @@ function App() {
   const handleInput = useCallback(() => {
     // Tell the audio manager that user interaction has occurred (needed for mobile)
     if (audioManagerRef.current) {
-      audioManagerRef.current.setUserInteracted();
-    }
+      // Resume audio context first (returns a promise)
+      audioManagerRef.current.setUserInteracted().then(() => {
+        if (showStartMessage) {
+          setShowStartMessage(false);
+        }
 
-    if (showStartMessage) {
-      setShowStartMessage(false);
-    }
+        if (isGameOver) {
+          resetGame(canvasRef.current);
+          // No need to call resetGroundBackground here, it's already called in resetGame
+        } else if (!isGameStarted) {
+          setIsGameStarted(true);
+          birdVelocityRef.current = flapStrength;
 
-    if (isGameOver) {
-      resetGame(canvasRef.current);
-      // No need to call resetGroundBackground here, it's already called in resetGame
-    } else if (!isGameStarted) {
-      setIsGameStarted(true);
-      birdVelocityRef.current = flapStrength;
+          // Start flapping animation
+          playerSpritesRef.current.isFlapping = true;
+          playerSpritesRef.current.currentFrame = 0; // Start with the first frame in sequence
+          playerSpritesRef.current.frameTimer = 0;   // Reset frame timer
+          
+          // Wait a short moment to ensure the audio context is fully running
+          setTimeout(() => {
+            // Start background music when game starts (first flap)
+            if (soundEnabled && audioManagerRef.current) {
+              audioManagerRef.current.playSound('backgroundMusic');
+            }
+          }, 50);
+        } else {
+          birdVelocityRef.current = flapStrength;
 
-      // Start flapping animation
-      playerSpritesRef.current.isFlapping = true;
-      playerSpritesRef.current.currentFrame = 0; // Start with the first frame in sequence
-      playerSpritesRef.current.frameTimer = 0;   // Reset frame timer
-      
-      // Start background music when game starts (first flap)
-      if (soundEnabled) {
-        audioManagerRef.current.playSound('backgroundMusic');
-      }
+          // Start flapping animation
+          playerSpritesRef.current.isFlapping = true;
+          playerSpritesRef.current.currentFrame = 0; // Start with the first frame in sequence
+          playerSpritesRef.current.frameTimer = 0;   // Reset frame timer
+          
+          // Play flap sound during gameplay
+          playFlapSound();
+        }
+      });
     } else {
-      birdVelocityRef.current = flapStrength;
+      // No audio manager, just handle the game state directly
+      if (showStartMessage) {
+        setShowStartMessage(false);
+      }
 
-      // Start flapping animation
-      playerSpritesRef.current.isFlapping = true;
-      playerSpritesRef.current.currentFrame = 0; // Start with the first frame in sequence
-      playerSpritesRef.current.frameTimer = 0;   // Reset frame timer
-      
-      // Play flap sound during gameplay
-      playFlapSound();
+      if (isGameOver) {
+        resetGame(canvasRef.current);
+      } else if (!isGameStarted) {
+        setIsGameStarted(true);
+        birdVelocityRef.current = flapStrength;
+        playerSpritesRef.current.isFlapping = true;
+        playerSpritesRef.current.currentFrame = 0;
+        playerSpritesRef.current.frameTimer = 0;   
+      } else {
+        birdVelocityRef.current = flapStrength;
+        playerSpritesRef.current.isFlapping = true;
+        playerSpritesRef.current.currentFrame = 0;
+        playerSpritesRef.current.frameTimer = 0;
+      }
     }
   }, [flapStrength, isGameOver, isGameStarted, resetGame, showStartMessage, soundEnabled, playFlapSound]);
 
@@ -981,26 +1041,42 @@ function App() {
       });
     };
 
+    // Create a loading tracker for assets
+    const assetLoadTracker = {
+      images: false,
+      audio: false,
+      updateLoadingState: function() {
+        if (this.images && this.audio) {
+          setAssetsLoaded(true);
+          // Trigger fade-out effect
+          setTimeout(() => setFadeOut(true), 1000);
+        }
+      }
+    };
+
+    // Image files to load
+    const imageFiles = [
+      PlayerFrame1, PlayerFrame2, PlayerFrame3, PlayerFrame4, 
+      PlayerFrame5, PlayerFrame6, PlayerFrame7,
+      PlayerDeath1, PlayerDeath2, PlayerDeath3, PlayerDeath4, PlayerDeath5,
+      UpperObstacle, LowerObstacle, GroundBackground, MidGroundBackground, CloudSprite
+    ];
+    
+    // Track progress of image loading
+    let loadedImages = 0;
+    const totalImages = imageFiles.length;
+    
     // Load all player frames, obstacle sprites, and background layers
-    Promise.all([
-      loadImage(PlayerFrame1),
-      loadImage(PlayerFrame2),
-      loadImage(PlayerFrame3),
-      loadImage(PlayerFrame4),
-      loadImage(PlayerFrame5),
-      loadImage(PlayerFrame6),
-      loadImage(PlayerFrame7),
-      loadImage(PlayerDeath1),
-      loadImage(PlayerDeath2),
-      loadImage(PlayerDeath3),
-      loadImage(PlayerDeath4),
-      loadImage(PlayerDeath5),
-      loadImage(UpperObstacle),
-      loadImage(LowerObstacle),
-      loadImage(GroundBackground),   // Load ground background
-      loadImage(MidGroundBackground), // Load midground background
-      loadImage(CloudSprite)         // Load cloud sprite
-    ]).then(images => {
+    Promise.all(imageFiles.map(src => {
+      return loadImage(src).then(img => {
+        loadedImages++;
+        setLoadingProgress(prev => ({
+          ...prev,
+          images: Math.floor((loadedImages / totalImages) * 100)
+        }));
+        return img;
+      });
+    })).then(images => {
       // Store loaded images in refs
       playerSpritesRef.current.frames = images.slice(0, 7);
       playerSpritesRef.current.deathFrames = images.slice(7, 12);
@@ -1037,11 +1113,9 @@ function App() {
         initializeCloudBackground();
       }
 
-      // Set assets as loaded
-      setAssetsLoaded(true);
-
-      // Trigger fade-out effect
-      setTimeout(() => setFadeOut(true), 500);
+      // Mark images as loaded
+      assetLoadTracker.images = true;
+      assetLoadTracker.updateLoadingState();
 
       // Force a redraw to show the loaded sprites
       const canvas = canvasRef.current;
@@ -1050,9 +1124,71 @@ function App() {
       }
     }).catch(error => {
       console.error('Error loading sprite images:', error);
+      // Still mark images as loaded even on error to prevent blocking
+      assetLoadTracker.images = true;
+      assetLoadTracker.updateLoadingState();
     });
+
+    // Load audio files
+    const loadAudio = async () => {
+      try {
+        // Initialize AudioManager with progress tracking
+        audioManagerRef.current = new AudioManager();
+        
+        // Listen for audio loading progress
+        const trackAudioProgress = () => {
+          // Simulate audio loading progress (since we can't easily track buffer loading)
+          let progress = 0;
+          const progressInterval = setInterval(() => {
+            progress += 5;
+            if (progress > 95) clearInterval(progressInterval);
+            setLoadingProgress(prev => ({
+              ...prev,
+              audio: progress
+            }));
+          }, 100);
+          
+          return progressInterval;
+        };
+        
+        const progressInterval = trackAudioProgress();
+        
+        // Wait for audio initialization to complete
+        await audioManagerRef.current.initialize();
+        
+        // Clear the progress interval
+        clearInterval(progressInterval);
+        
+        // Set final progress to 100%
+        setLoadingProgress(prev => ({
+          ...prev,
+          audio: 100
+        }));
+        
+        // Mark audio as loaded
+        assetLoadTracker.audio = true;
+        assetLoadTracker.updateLoadingState();
+      } catch (error) {
+        console.error('Error loading audio:', error);
+        // Still mark audio as loaded on error to prevent blocking
+        setLoadingProgress(prev => ({
+          ...prev,
+          audio: 100
+        }));
+        assetLoadTracker.audio = true;
+        assetLoadTracker.updateLoadingState();
+      }
+    };
+
+    // Start loading audio
+    loadAudio();
     
-    // Add an empty array dependency to ensure this effect only runs once at mount
+    // Clean up on unmount
+    return () => {
+      if (audioManagerRef.current) {
+        audioManagerRef.current.stopBackgroundMusic();
+      }
+    };
   }, []);
 
   // Preload audio files
@@ -1079,23 +1215,8 @@ function App() {
       });
     };
 
-    // Load audio files
-    const loadAudio = async () => {
-      // Initialize AudioManager
-      audioManagerRef.current = new AudioManager();
-      await audioManagerRef.current.initialize();
-    };
-
-    // Load sound UI sprites and audio files
+    // Load sound UI sprites
     loadSoundUISprites();
-    loadAudio();
-    
-    // Clean up audio on unmount
-    return () => {
-      if (audioManagerRef.current) {
-        audioManagerRef.current.stopBackgroundMusic();
-      }
-    };
   }, []);
 
   // Initialize collision detection system
@@ -1554,7 +1675,7 @@ function App() {
 
   return (
     <div className="App">
-      {/* Black overlay for loading screen */}
+      {/* Loading screen */}
       {!fadeOut && (
         <div
           style={{
@@ -1568,8 +1689,35 @@ function App() {
             opacity: assetsLoaded ? 0 : 1,
             transition: 'opacity 1s ease-in-out',
             pointerEvents: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            color: 'white',
+            fontFamily: 'PixeloidSans'
           }}
-        ></div>
+        >
+          <h2 style={{ marginBottom: '20px' }}>Loading...</h2>
+          <div style={{ width: '80%', maxWidth: '300px' }}>
+            <div style={{ 
+              width: '100%', 
+              height: '20px', 
+              backgroundColor: '#333',
+              overflow: 'hidden',
+              marginBottom: '10px'
+            }}>
+              <div style={{ 
+                width: `${(loadingProgress.images + loadingProgress.audio) / 2}%`, 
+                height: '100%', 
+                backgroundColor: '#ffffff',
+                transition: 'width 0.3s ease-in-out'
+              }}></div>
+            </div>
+            <div style={{ fontSize: '14px', textAlign: 'center' }}>
+              {Math.floor((loadingProgress.images + loadingProgress.audio) / 2)}%
+            </div>
+          </div>
+        </div>
       )}
 
       <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} />
