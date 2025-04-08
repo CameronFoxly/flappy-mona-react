@@ -1,7 +1,7 @@
 {
   "files": {
     "main.css": "/flappy-mona-react/static/css/main.3f7fc803.css",
-    "main.js": "/flappy-mona-react/static/js/main.a1fffcd7.js",
+    "main.js": "/flappy-mona-react/static/js/main.4278c11b.js",
     "static/js/453.9602a7ff.chunk.js": "/flappy-mona-react/static/js/453.9602a7ff.chunk.js",
     "static/media/SONG.mp3": "/flappy-mona-react/static/media/SONG.1c1f3bd4bbb8c7a1b876.mp3",
     "static/media/DEATH.wav": "/flappy-mona-react/static/media/DEATH.52909a43575893d22985.wav",
@@ -10,11 +10,11 @@
     "static/media/SUCCESS.wav": "/flappy-mona-react/static/media/SUCCESS.5638fa9ef36bed5e04f8.wav",
     "index.html": "/flappy-mona-react/index.html",
     "main.3f7fc803.css.map": "/flappy-mona-react/static/css/main.3f7fc803.css.map",
-    "main.a1fffcd7.js.map": "/flappy-mona-react/static/js/main.a1fffcd7.js.map",
+    "main.4278c11b.js.map": "/flappy-mona-react/static/js/main.4278c11b.js.map",
     "453.9602a7ff.chunk.js.map": "/flappy-mona-react/static/js/453.9602a7ff.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.3f7fc803.css",
-    "static/js/main.a1fffcd7.js"
+    "static/js/main.4278c11b.js"
   ]
 }
