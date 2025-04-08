@@ -1,6 +1,8 @@
 # Flappy Mona
 
-Flappy Mona is a browser-based game inspired by the classic "Flappy Bird" starring Mona the Octocat. In this game, you control a bird (Mona) and navigate through a series of obstacles to achieve the highest score possible.
+![Screenshot 2025-04-07 at 5 01 46 PM](https://github.com/user-attachments/assets/2b5cd9e6-9f93-44c3-a7c0-48483475d028)
+
+Flappy Mona is web port of GitHub's iOS easteregg game inspired by the classic "Flappy Bird" starring Mona the Octocat. In this game, you control a bird (Mona) and navigate through a series of obstacles to achieve the highest score possible.
 
 [Live demo here.](https://cameronfoxly.github.io/flappy-mona-react/)
 
@@ -12,42 +14,22 @@ Flappy Mona is a browser-based game inspired by the classic "Flappy Bird" starri
 4. If the game ends, hit flap to restart.
 5. Toggle sound on/off using the sound button in the top-left corner.
 
-## Available Scripts
+## Develop
 
-In the project directory, you can run:
+This was vibe-coded with GitHub Copilot, so ignore any silly structure issues. 😎
 
-### `npm start`
+1. Clone the repo.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+2. In the project directory, run:
+
+`npm install` 
+
+3. To install the dependencies
+
+`npm start`
+
+To set up your develpment server
+
 
 The page will reload when you make changes.\
 You may also see any lint errors in the console.
-
-### `npm test`
-
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
-
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-### `npm run deploy`
-
-Deploys the app to GitHub Pages. Make sure to configure the `homepage` field in `package.json` with your GitHub username and repository name.
-
-## Deployment
-
-This app is configured to be deployed to GitHub Pages. To deploy, run:
-
-```bash
-npm run deploy
-```
-
-The app will be available at `https://<your-github-username>.github.io/<repository-name>`.
-
