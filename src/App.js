@@ -468,11 +468,11 @@ function App() {
     particles: [],
     emitting: false,
     lastEmitTime: 0,
-    minEmissionRate: 20,  // Particles per second when not flapping
-    maxEmissionRate: 80,  // Particles per second when flapping
-    currentEmissionRate: 20,  // Current emission rate (will vary between min and max)
+    minEmissionRate: 30,  // Particles per second when not flapping
+    maxEmissionRate: 30,  // Particles per second when flapping
+    currentEmissionRate: 30,  // Current emission rate (will vary between min and max)
     flapping: false,      // Tracks if player just flapped
-    flapEmitBoostTime: 0  // Timer for emission rate boost after flap
+    flapEmitBoostTime: 0.5  // Timer for emission rate boost after flap
   });
 
   // Add a reference to track bird's Y position outside the game loop
@@ -1390,21 +1390,21 @@ function App() {
       if (particleSystem.emitting) {
         // Create new particles
         for (let i = 0; i < particlesToEmitNow; i++) {
-          // Random size between 3 and 6 pixels
-          const size = Math.random() * 3 + 3;
+          // Random size between 3 and 4 pixels
+          const size = Math.random() * 1 + 3;
           
-          // Random lifespan between 0.2 and 0.45 seconds
-          const lifespan = Math.random() * 0.25 + 0.2;
+          // Random lifespan between 1.2 and 1.45 seconds
+          const lifespan = Math.random() * 0.25 + 0.6;
           
           // Create particle at player's position
           particleSystem.particles.push({
             x: playerX,
-            y: playerY,
+            y: playerY+43, // Offset slightly below the bird
             size: size,
             lifespan: lifespan,
             remainingLife: lifespan,
             // Give the particle some initial vertical velocity for varied movement
-            velocityY: (Math.random() - 0.5) * 80 // Random velocity between -40 and 40 pixels/s
+            velocityY: (Math.random() - 0.1) * 0.001 // Random velocity between -5 and 5 pixels/s
           });
         }
       }
@@ -1420,7 +1420,7 @@ function App() {
         particle.x -= obstacleSpeed * deltaTime;
         
         // Apply gravity to particles
-        particle.velocityY += gravity * deltaTime * 0.4; // Reduced gravity effect (40% of player gravity)
+        particle.velocityY += gravity * deltaTime * 0.1; // Reduced gravity effect (10% of player gravity)
         particle.y += particle.velocityY * deltaTime;
       }
       
