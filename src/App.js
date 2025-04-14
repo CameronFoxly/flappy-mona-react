@@ -463,6 +463,18 @@ function App() {
     height: 0
   });
 
+  // Add particle system reference
+  const particleSystemRef = useRef({
+    particles: [],
+    emitting: false,
+    lastEmitTime: 0,
+    minEmissionRate: 20,  // Particles per second when not flapping
+    maxEmissionRate: 80,  // Particles per second when flapping
+    currentEmissionRate: 20,  // Current emission rate (will vary between min and max)
+    flapping: false,      // Tracks if player just flapped
+    flapEmitBoostTime: 0  // Timer for emission rate boost after flap
+  });
+
   // Add a reference to track bird's Y position outside the game loop
   const birdYRef = useRef(GAME_HEIGHT / 4); // Adjusted starting position to be higher
   const finalDeathPositionRef = useRef(GAME_HEIGHT / 2); // Store final position on death
@@ -663,7 +675,7 @@ function App() {
     }
   }, []);
 
-  // Update resetGame to also reset audio
+  // Reset game function updated to clear particles
   const resetGame = useCallback((canvas) => {
     birdVelocityRef.current = 0;
     setIsGameOver(false);
@@ -678,6 +690,12 @@ function App() {
     playerSpritesRef.current.hideAfterDeath = false;
     playerSpritesRef.current.isFlapping = false;
     playerSpritesRef.current.currentFrame = 0;
+    
+    // Reset particle system
+    particleSystemRef.current.particles = [];
+    particleSystemRef.current.emitting = false;
+    particleSystemRef.current.flapping = false;
+    particleSystemRef.current.flapEmitBoostTime = 0;
 
     // Stop background music if it's playing
     audioManagerRef.current.stopBackgroundMusic();
@@ -694,7 +712,6 @@ function App() {
     applyTransform(canvas);
 
     // Spawn initial obstacles
-
     spawnInitialObstacles();
 
     // Initialize background layers during game reset
@@ -725,6 +742,10 @@ function App() {
           playerSpritesRef.current.currentFrame = 0; // Start with the first frame in sequence
           playerSpritesRef.current.frameTimer = 0;   // Reset frame timer
           
+          // Trigger particle emission on first flap
+          particleSystemRef.current.flapping = true;
+          particleSystemRef.current.flapEmitBoostTime = 0;
+          
           // Wait a short moment to ensure the audio context is fully running
           setTimeout(() => {
             // Start background music when game starts (first flap)
@@ -739,6 +760,10 @@ function App() {
           playerSpritesRef.current.isFlapping = true;
           playerSpritesRef.current.currentFrame = 0; // Start with the first frame in sequence
           playerSpritesRef.current.frameTimer = 0;   // Reset frame timer
+          
+          // Trigger particle emission on flap
+          particleSystemRef.current.flapping = true;
+          particleSystemRef.current.flapEmitBoostTime = 0;
           
           // Play flap sound during gameplay
           playFlapSound();
@@ -757,12 +782,20 @@ function App() {
         birdVelocityRef.current = flapStrength;
         playerSpritesRef.current.isFlapping = true;
         playerSpritesRef.current.currentFrame = 0;
-        playerSpritesRef.current.frameTimer = 0;   
+        playerSpritesRef.current.frameTimer = 0;
+        
+        // Trigger particle emission on first flap
+        particleSystemRef.current.flapping = true;
+        particleSystemRef.current.flapEmitBoostTime = 0;
       } else {
         birdVelocityRef.current = flapStrength;
         playerSpritesRef.current.isFlapping = true;
         playerSpritesRef.current.currentFrame = 0;
         playerSpritesRef.current.frameTimer = 0;
+        
+        // Trigger particle emission on flap
+        particleSystemRef.current.flapping = true;
+        particleSystemRef.current.flapEmitBoostTime = 0;
       }
     }
   }, [flapStrength, isGameOver, isGameStarted, resetGame, showStartMessage, soundEnabled, playFlapSound]);
@@ -1315,6 +1348,119 @@ function App() {
     spawnInitialObstacles();
   }, [spawnInitialObstacles]);
 
+  // Update particle system
+  const updateParticleSystem = useCallback((deltaTime) => {
+    const particleSystem = particleSystemRef.current;
+    const playerX = 100; // Player's X position
+    const playerY = birdYRef.current; // Player's current Y position
+    
+    // Start particle emission after first flap
+    if (!particleSystem.emitting && isGameStarted) {
+      particleSystem.emitting = true;
+    }
+    
+    // Update emission rate based on flapping state
+    if (particleSystem.flapping) {
+      // Decay emission rate over time
+      particleSystem.flapEmitBoostTime += deltaTime;
+      if (particleSystem.flapEmitBoostTime > 0.2) { // Decay within 0.2 seconds
+        particleSystem.flapping = false;
+        particleSystem.flapEmitBoostTime = 0;
+      }
+    }
+    
+    // Set current emission rate based on flapping state
+    particleSystem.currentEmissionRate = particleSystem.flapping 
+      ? particleSystem.maxEmissionRate 
+      : particleSystem.minEmissionRate;
+    
+    // Only create new particles if the game is active (not in game over state)
+    if (isGameStarted && !isGameOver) {
+      // Calculate how many particles to emit this frame
+      const particlesThisFrame = particleSystem.currentEmissionRate * deltaTime;
+      
+      // Track how many particles we need to emit (including fractional parts from previous frames)
+      particleSystem.particlesToEmit = (particleSystem.particlesToEmit || 0) + particlesThisFrame;
+      
+      // Emit whole number of particles
+      const particlesToEmitNow = Math.floor(particleSystem.particlesToEmit);
+      particleSystem.particlesToEmit -= particlesToEmitNow;
+      
+      // Only emit particles if the system is active
+      if (particleSystem.emitting) {
+        // Create new particles
+        for (let i = 0; i < particlesToEmitNow; i++) {
+          // Random size between 3 and 6 pixels
+          const size = Math.random() * 3 + 3;
+          
+          // Random lifespan between 0.2 and 0.45 seconds
+          const lifespan = Math.random() * 0.25 + 0.2;
+          
+          // Create particle at player's position
+          particleSystem.particles.push({
+            x: playerX,
+            y: playerY,
+            size: size,
+            lifespan: lifespan,
+            remainingLife: lifespan,
+            // Give the particle some initial vertical velocity for varied movement
+            velocityY: (Math.random() - 0.5) * 80 // Random velocity between -40 and 40 pixels/s
+          });
+        }
+      }
+    }
+    
+    // Update existing particles - only if game is not over
+    for (let i = particleSystem.particles.length - 1; i >= 0; i--) {
+      const particle = particleSystem.particles[i];
+      
+      // Only move particles if the game is not over
+      if (!isGameOver) {
+        // Update position - move at same speed as obstacles to create trail effect
+        particle.x -= obstacleSpeed * deltaTime;
+        
+        // Apply gravity to particles
+        particle.velocityY += gravity * deltaTime * 0.4; // Reduced gravity effect (40% of player gravity)
+        particle.y += particle.velocityY * deltaTime;
+      }
+      
+      // Update lifespan (continue to age particles even when game is over)
+      particle.remainingLife -= deltaTime;
+      
+      // Calculate scale based on remaining life (linear scale from 1.0 to 0.0)
+      particle.scale = particle.remainingLife / particle.lifespan;
+      
+      // Remove dead particles
+      if (particle.remainingLife <= 0) {
+        particleSystem.particles.splice(i, 1);
+      }
+    }
+  }, [isGameStarted, isGameOver, obstacleSpeed, gravity]);
+  
+  // Draw particles
+  const drawParticles = useCallback((context) => {
+    const particleSystem = particleSystemRef.current;
+    
+    // Set drawing style for particles
+    context.fillStyle = 'white';
+    
+    // Draw each particle
+    particleSystem.particles.forEach(particle => {
+      // Calculate the current size based on scale
+      const currentSize = particle.size * particle.scale;
+      
+      // Only draw if the particle is still visible (size > 0)
+      if (currentSize > 0) {
+        context.fillRect(
+          particle.x - currentSize/2, 
+          particle.y - currentSize/2, 
+          currentSize, 
+          currentSize
+        );
+      }
+    });
+  }, []);
+
   // Update ground background positions for infinite scrolling
   const updateGroundBackground = useCallback((deltaTime) => {
     // Only update if the game is active (neither game over nor not started)
@@ -1485,6 +1631,12 @@ function App() {
       // Update sprite animation
       const playerSprites = playerSpritesRef.current;
       
+      // Update particle system
+      updateParticleSystem(clampedDeltaTime);
+      
+      // Draw particles behind the player
+      drawParticles(context);
+
       if (isGameOver && playerSprites.isDeathAnimating) {
         // Update death animation
         playerSprites.frameTimer += clampedDeltaTime * 1000; // Convert to ms
@@ -1515,7 +1667,6 @@ function App() {
           }
         }
       }
-
 
       // Draw bird at current position
       const spriteSize = 96;
@@ -1681,7 +1832,7 @@ function App() {
         cancelAnimationFrame(animationFrameIdRef.current);
       }
     };
-  }, [isGameOver, isGameStarted, applyTransform, bufferObstacles, drawObstacles, checkPixelCollision, gravity, obstacleSpeed, drawGroundBackground, updateGroundBackground, drawMidGroundBackground, updateMidGroundBackground, drawCloudBackground, updateCloudBackground]);
+  }, [isGameOver, isGameStarted, applyTransform, bufferObstacles, drawObstacles, checkPixelCollision, gravity, obstacleSpeed, drawGroundBackground, updateGroundBackground, drawMidGroundBackground, updateMidGroundBackground, drawCloudBackground, updateCloudBackground, updateParticleSystem, drawParticles]);
 
   // Input handlers
   useEffect(() => {
